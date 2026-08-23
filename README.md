@@ -1,491 +1,253 @@
 # ESP_RTK_ROVER
 
-**Turn a 50 € e-waste ECOVACS GOAT RTK base station into a centimetre-accurate GNSS rover.**
+**A 50 € robot-mower part turned into a DIY centimetre-accurate GNSS rover.**
 
-[![Platform](https://img.shields.io/badge/platform-ESP32%20%7C%20XIAO%20ESP32--C6-blue)](https://www.espressif.com/)
+[![Platform](https://img.shields.io/badge/platform-XIAO%20ESP32C6%20%7C%20ESP32-blue)](https://www.espressif.com/)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%2F%20PlatformIO-orange)](https://platformio.org/)
-[![GNSS](https://img.shields.io/badge/GNSS-ComNav%20SinoGNSS%20K803%20Lite-success)](https://www.comnavtech.com/)
-[![Field tested](https://img.shields.io/badge/status-field%20tested-success)](#results)
-[![RTK](https://img.shields.io/badge/RTK%20FIX-%CE%94H%206%20mm%20%C2%B7%20%CE%94V%209%20mm-brightgreen)](#results)
-[![Open Hardware](https://img.shields.io/badge/open-hardware%20%2B%20firmware-lightgrey)](#license)
-[![License](https://img.shields.io/badge/license-MIT-green)](#license)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-blueviolet)](#contributing)
+[![GNSS](https://img.shields.io/badge/GNSS-ComNav%20K803%20Lite-success)](https://www.comnavtech.com/)
+[![DIY](https://img.shields.io/badge/DIY-not%20a%20certified%20instrument-red)](#-this-is-a-diy-device-not-a-survey-instrument)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 <p align="center">
-  <img src="media/rover-field.jpeg" alt="The converted ECOVACS GOAT dome on a survey pole, powered from a USB power bank" width="380">
+  <img src="media/rover-field.jpeg" alt="The converted dome on a survey pole, powered from a USB power bank" width="360">
 </p>
 
 <p align="center">
   <b><a href="https://hmd83.github.io/ESP_RTK_ROVER/install/">⚡ Flash in your browser</a></b> ·
   <b><a href="https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html">🛰️ Live Dashboard</a></b> ·
-  <a href="HARDWARE.md">🔧 Hardware &amp; Wiring</a> ·
+  <a href="HARDWARE.md">🔧 Hardware</a> ·
   <a href="COMMANDS.md">📡 K803 Commands</a> ·
-  <a href="FLASHING.md">📖 Flashing Guide</a>
+  <a href="FLASHING.md">📖 Flashing</a>
 </p>
 
 ---
 
-## What this is
+## What it is
 
-The ECOVACS GOAT robotic lawnmower ships with an external **RTK base station** — the black
-dome you screw onto a pole in the garden. Owners sell them off constantly (broken mower,
-upgraded model, moved house), so they turn up on the German second-hand market for **40–95 €**.
+ECOVACS GOAT lawnmowers ship with an RTK base station — the black dome you screw onto a pole.
+People sell them second-hand for **40–90 €** when they change mowers.
 
-Inside that dome is a **SinoGNSS K803 Lite** by ComNav Technology: a multi-constellation,
-multi-frequency GNSS OEM board with a real survey-grade RTK engine, paired with a decent
-patch antenna and a machined ground plane. The same silicon in a commercial rover housing
-sells for well north of 3 000 €.
+Inside is a **SinoGNSS K803 Lite** by ComNav: a multi-frequency GNSS board with a real RTK
+engine, a patch antenna and a machined ground plane.
 
-This project throws away the proprietary radio link, wires the K803's **COM1** to an ESP32,
-and turns the whole thing into a **Bluetooth RTK rover** that any mobile GIS app can talk to.
+This project wires that board to a **Seeed Studio XIAO ESP32C6** and turns the dome into a
+Bluetooth RTK rover that any mobile GIS app can talk to.
 
-<p align="center">
-  <img src="media/listings-secondhand.jpg" alt="Second-hand listings for ECOVACS GOAT RTK antennas, 50–95 €" width="620"><br>
-  <sub>Typical second-hand listings — this is the entire hardware cost of the project.</sub>
-</p>
-
-### What the firmware does
-
-- **Configures the K803 on every boot** — the factory unit comes up as a *base station*. The
-  ESP32 replays a ComNav/NovAtel ASCII command sequence over COM1 that unlogs the factory
-  messages, clears the stored base coordinate, switches the engine to **rover** mode, enables
-  the NMEA sentences a GIS app expects, and finally drops the port into RTCM auto-detect.
-  No laptop, no Windows tool, no Python script before a survey.
-- **Bridges bytes, transparently** — NMEA up to the phone, RTCM3 corrections down to the
-  receiver. It never parses, reframes or line-buffers the stream, so binary RTCM3 and UBX
-  survive intact.
-- **Speaks the Bluetooth dialect your app expects** — Bluetooth Classic **SPP** on the ESP32,
-  **BLE (Nordic UART Service)** on the XIAO ESP32-C6.
-- **Ships a diagnostic dashboard** — a single self-contained HTML page that connects straight
-  to the rover over Web Bluetooth and decodes the live NMEA: fix quality, σ-values, DOPs,
-  correction age, raw sentence log.
-
-### What it is not
-
-- There is **no NTRIP client on the ESP32**. Corrections come from the phone, which already
-  has the cellular connection and the caster credentials — see [Architecture](#architecture).
-  On-board NTRIP over Wi-Fi is on the [roadmap](#roadmap).
-- The dashboard is **not served by the ESP32**. It is an offline HTML file you open in Chrome
-  or Edge; it talks to the rover over Web Bluetooth, not over HTTP.
-
----
-
-## Results
-
-Field-tested against a public NTRIP network with SW Maps on Android:
-
-| Metric | Observed |
-|---|---|
-| Solution | **RTK FIXED** |
-| Horizontal precision (ΔH) | **6 mm** |
-| Vertical precision (ΔV) | **9 mm** |
-| Correction age | 1.0 s |
-| Satellites used / tracked | 14 / 27 |
-| Time to fix (open sky, ~10 km baseline) | ~30–60 s from cold start |
-
-<p align="center">
-  <img src="media/swmaps-rtk-fix.jpeg" alt="SW Maps showing RTK FIX, 27(14) satellites, age 1.0 s, ΔH 6 mm, ΔV 9 mm" width="300">
-</p>
-
-> Precision figures are the receiver's own σ estimates as reported to the app, not an
-> independent check against a control point. Absolute accuracy also depends on your
-> correction source, baseline length and antenna setup.
-
-### Antenna phase centre — the uncharacterised part
-
-**Read this before you trust a height.**
-
-A geodetic antenna ships with a calibration — an NGS or IGS [ANTEX](https://files.igs.org/pub/data/format/antex14.txt)
-table giving the phase-centre offset (PCO) and phase-centre variation (PCV) per frequency and
-per elevation angle. That is what lets software reduce a solution to the **Antenna Reference
-Point**: a physical spot on the hardware you can put a tape measure on.
-
-This dome has no such calibration. Nobody ever characterised it, because it was never sold as
-a survey instrument. So the offset between where the receiver *believes* the antenna is and
-where it physically sits is **unknown**.
-
-That error behaves in the least convenient way possible:
-
-- It is **systematic**, not random — it does not average out over a longer occupation.
-- It lands **mostly in height**. Horizontal is better behaved.
-- It **repeats**, exactly as confidently as the correct part of the solution. A fast, confident
-  RTK fix is precisely the kind that hides a constant offset.
-
-Until it is measured against a known control point, **treat heights as carrying an unknown
-constant bias**. The 9 mm above is the engine's opinion of its own solution, and the engine has
-no way to know about this.
-
-Two habits cost nothing and make the bias *constant* rather than varying between setups, which
-is the prerequisite for ever calibrating it out:
-
-1. **Always measure to the same physical point** on the mount, and record what you chose.
-2. **Mark a reference direction** on the dome and orient it the same way every time. Geodetic
-   practice points the antenna's north mark north; the principle is what matters, not the
-   direction — it makes azimuthal PCV error repeatable instead of random.
-
-Characterising the offset is a [roadmap](#roadmap) item, and the procedure is written up in
-**[docs/accuracy-test.md](docs/accuracy-test.md)** — candidate control points, method, error
-budget and what the result can honestly claim. In short: occupy a published control point on
-separate days — different satellite geometry, different multipath — and compare against the
-known coordinate. Repeatability alone proves precision, not accuracy; a constant offset repeats
-beautifully. Only the comparison against truth exposes it. The result will be published here,
-whichever way it falls.
-
-> Thanks to the GNSS practitioners on
-> [LinkedIn](https://www.linkedin.com/in/hussein-daj-787196202/) who pushed on this — naming
-> the limitation is more useful than the number was.
-
----
-
-## Bill of materials
-
-| Item | Notes | Typical cost |
-|---|---|---|
-| ECOVACS GOAT RTK base station | Any GOAT / O800 / A1600 / G1 "RTK Antenne" listing. Contains the K803 Lite, antenna and ground plane. | 40–95 € |
-| **[Seeed Studio XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html)** *(primary build)* | BLE-only, thumbnail-sized, native USB-C, fits inside the dome. | ~8 € |
-| — or — **ESP32 DevKitC (WROOM-32)** | Bluetooth Classic SPP for legacy collectors and Windows software. | ~6 € |
-| USB power bank | 5 V, any capacity. Powers both boards for a full day of survey. | on hand |
-| Silicone wire, JST leads, heat-shrink | 4 conductors: 5 V, GND, TX, RX. | on hand |
-| Survey pole / tripod with 5/8″ thread | The dome already has the mount. | optional |
-
-**Total: well under 100 €**, against 3 000 €+ for a comparable commercial rover.
-
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    CASTER["NTRIP caster<br/>(RTK2go / national network)"]
-    PHONE["Phone / tablet<br/>SW Maps · QField · Mergin<br/>NTRIP client + GIS"]
-    ESP["ESP32 / XIAO ESP32-C6<br/>ESP_RTK_ROVER firmware"]
-    K803["ComNav K803 Lite<br/>COM1 @ 115200 8N1"]
-    ANT["Patch antenna<br/>+ ground plane"]
-
-    CASTER -- "RTCM3 over cellular" --> PHONE
-    PHONE  -- "RTCM3 · Bluetooth SPP / BLE NUS" --> ESP
-    ESP    -- "RTCM3 · UART TX" --> K803
-    K803   -- "NMEA · UART RX" --> ESP
-    ESP    -- "NMEA · Bluetooth SPP / BLE NUS" --> PHONE
-    PHONE  -- "GGA position (VRS/MAC)" --> CASTER
-    ANT    --- K803
+```
+  phone  (NTRIP client + GIS app)
+    │   RTCM3 down  ·  NMEA up
+    │   Bluetooth LE / SPP
+  ESP32 / XIAO ESP32C6
+    │   UART 115200
+  ComNav K803 Lite  ──  patch antenna + ground plane
 ```
 
-The phone is the only device with an internet connection, so it runs the NTRIP client. It
-also feeds your position back up to the caster as a GGA sentence, which is what network-RTK
-(VRS / MAC / nearest-base) services need in order to generate a correction stream for your
-location. The ESP32 sits in the middle and moves bytes.
+The firmware:
 
-**Boot sequence on the ESP32:**
+- **reconfigures the K803 from base station to rover on every boot** — no laptop before a survey
+- **passes bytes both ways, transparently** — NMEA up, RTCM3 corrections down
+- **speaks BLE** (XIAO, works on iOS and Android) or **Bluetooth Classic SPP** (ESP32 DevKitC)
+- **ships a browser dashboard** for live diagnostics
 
-1. UART comes up at 115 200 8N1 with a 4 KB RX buffer.
-2. `gnssInit()` walks the K803 configuration sequence — about **13 seconds** (see
-   [COMMANDS.md](COMMANDS.md)). This runs *before* Bluetooth starts, so a phone that
-   connects early is never fed the command transcript.
-3. The Bluetooth link starts advertising.
-4. `loop()` pumps both directions and prints a throughput line every 5 s.
+Total build cost: **under 100 €**.
 
 ---
 
-## Hardware variants
+## ⚠️ This is a DIY device, not a survey instrument
 
-| Build env | Board | Transport | Use it when |
-|---|---|---|---|
-| `xiao_esp32c6_ble` | Seeed XIAO ESP32-C6 | **BLE** (Nordic UART) | **Primary build.** iOS *and* Android, modern GIS apps, fits inside the dome. |
-| `esp32dev_spp` | ESP32 DevKitC | **Bluetooth Classic (SPP)** | Legacy data collectors, Windows GIS suites, anything that says "choose a paired Bluetooth device". Repo default. |
-| `esp32dev_ble` | ESP32 DevKitC | BLE (Nordic UART) | Testing BLE on hardware you already own. |
+Read this before using it for anything that matters.
 
-### XIAO ESP32-C6 Edition — the compact one
+- **No calibration.** The antenna has no phase-centre calibration. Heights carry an unknown
+  constant offset, probably a few centimetres.
+- **No certification.** No type approval, no conformity assessment, no traceability to a
+  national standard.
+- **No integrity monitoring.** Commercial receivers add interference detection, multipath
+  mitigation and integrity checking. This has none. **A false fix looks exactly like a good
+  one.**
+- **No support.** If it gives you a wrong answer, there is nobody to call. That, more than the
+  silicon, is what the expensive units are really selling.
 
-Built around the
-**[Seeed Studio XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html)**
-([wiki](https://wiki.seeedstudio.com/xiao_esp32c6_getting_started/)) — a thumbnail-sized,
-single-sided RISC-V board with native USB-C. It is the reason this rover fits *inside* the
-original dome instead of hanging off it in a project box: the whole electronics addition is
-21 × 17.5 mm. Cheap, well documented, and it just works with the pioarduino ESP32 platform.
+**Do not use it for:** cadastral or land-registry work, legal boundaries, construction
+setting-out, aviation, marine navigation, or anything where a wrong position hurts someone.
 
-Bluetooth Low Energy is what current mobile GIS software speaks, and it is the **only**
-way to reach an iPhone: iOS gives no app access to Bluetooth Classic SPP without MFi
-certification. The C6 has no Classic radio at all, which is fine — BLE is the target.
+Use at your own risk.
 
-The firmware advertises as `ESP32-RTK-XXXX`, where `XXXX` is the last two octets of the
-radio's MAC. Two rovers in the same field stay tellable apart in a scan list, and a phone's
-bond for one is never reused for the other.
+## What it *is* good for
 
-BLE tuning that matters for an RTK stream (all handled in firmware):
-
-- MTU 247 → 244-byte notifications instead of 20
-- Data-length extension 251
-- Connection interval renegotiated to 7.5–15 ms (the 40 ms default bottlenecks the stream)
-- Name in the advertisement, service UUID in the scan response — all three do not fit in
-  31 bytes, and a nameless advertisement is hidden by phone Bluetooth menus
-
-### Classic ESP32 Edition — the compatible one
-
-Bluetooth Classic SPP is the profile an HC-05 or USB-TTL dongle presents. The phone pairs
-with it from the normal system Bluetooth menu, and every GNSS app that offers "pick a paired
-Bluetooth device" works — including a lot of software that never got a BLE mode.
-
-> Note: `esp32dev_spp` builds with the `huge_app.csv` partition layout. Bluedroid with
-> Classic enabled overflows the default 1.4 MB app partition. That layout has no OTA slot.
-
-Full teardown, pinouts and wiring: **[HARDWARE.md](HARDWARE.md)**
+| Use | Why it fits |
+|---|---|
+| **Robotics** | Autonomous rovers and mowers, ground stations, drone pads — centimetre positioning at hobby cost |
+| **DIY auto-steering** | Tractor guidance and precision-agriculture experiments |
+| **Hobbyist survey & mapping** | Field boundaries, garden and site layout, trails, asset mapping |
+| **Learning GNSS / RTK** | A genuine multi-frequency receiver to experiment with, for the price of a takeaway |
 
 ---
 
-## Quick start
+## How accurate is it?
 
-### 1. Get the hardware out of the dome
+Two field tests against official government height benchmarks, using free NTRIP corrections.
+Then we stopped — this is a hobby device, and characterising it properly needs reference
+equipment we do not have.
 
-Four screws, one harness. Full walkthrough with photos in **[HARDWARE.md](HARDWARE.md)**.
-
-<p align="center">
-  <img src="media/teardown-board-harness.jpeg" alt="ECOVACS GOAT base station opened, K803 Lite board exposed with the 4-wire harness attached" width="420">
-</p>
-
-### 2. Wire it
+### Test 1 — Bühl, 22 Aug 2026
 
 <p align="center">
-  <img src="media/pinout-k803-harness.jpeg" alt="K803 Lite board with 5V, GND, GNSS TX and GNSS RX called out on the JST header" width="620">
+  <img src="media/test-1-swmaps.jpg" alt="SW Maps point properties: RTK Fix, 16 satellites, PDOP 0.80" width="290">
 </p>
 
-| K803 harness | XIAO ESP32-C6 | ESP32 DevKitC |
+**RTK FIX.** 16 satellites, PDOP 0.80, corrections 1 s old, 7.7 km baseline. The receiver's own
+precision estimate: 2 mm horizontal, 4 mm vertical.
+
+We went to check it against an official first-order height benchmark. The physical mark turned
+out to be a bolt on the *side* of a granite pillar, and we never found it — so there was nothing
+to compare against. The measurement itself came out sane.
+
+### Test 2 — a nearby building, 23 Aug 2026
+
+<p align="center">
+  <img src="media/test-2-swmaps.jpg" alt="SW Maps point properties: RTK Fix, 14 satellites, PDOP 0.90" width="290">
+</p>
+
+**RTK FIX.** 14 satellites, PDOP 0.90. Precision estimate 7 mm horizontal, 11 mm vertical —
+worse than test 1, because the antenna was standing right against a wall.
+
+This time the benchmark was found: a bolt in the wall, 0.28 m above the paving, with a published
+official height.
+
+> **Measured ellipsoidal height − official height = 48.71 m**
+
+That difference should be the *geoid separation*, which in this part of Germany is **47–50 m**.
+It is. And it lands within about a centimetre of what test 1 implied, from a site 14 km away.
+
+### What that proves — and what it doesn't
+
+✅ The receiver produces a stable RTK fix, correctly referenced, with no gross error
+✅ Two independent sites agree with each other
+
+❌ It is **not** an accuracy figure. The millimetre numbers the app displays are the receiver
+grading its own homework
+❌ It does not separate the antenna's own offset from the geoid model — that would need the
+official geoid value, a proper 15-minute occupation, and repeat visits on different days
+
+**Treat heights as good to a few centimetres, not millimetres.** Horizontal behaves better than
+vertical. If you need certainty, buy a certified instrument.
+
+---
+
+## Hardware
+
+| Item | Cost |
+|---|---|
+| ECOVACS GOAT RTK base station (second-hand) | 40–90 € |
+| [Seeed Studio XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html) | ~8 € |
+| USB power bank, wire, heat-shrink | on hand |
+
+<p align="center">
+  <img src="media/pinout-k803-harness.jpeg" alt="K803 Lite carrier board with 5V, GND, GNSS TX and GNSS RX called out" width="560">
+</p>
+
+| K803 harness | XIAO ESP32C6 | ESP32 DevKitC |
 |---|---|---|
 | **GNSS TX** (blue) | `D7` / GPIO17 | GPIO16 (`RX2`) |
 | **GNSS RX** (green) | `D6` / GPIO16 | GPIO17 (`TX2`) |
 | **GND** (yellow) | `GND` | `GND` |
-| **5 V** (orange) | `5V` (VBUS) — read the power notes | `VIN` / `5V` — read the power notes |
+| **5 V** (orange) | `5V` | `VIN` |
 
-TX and RX **cross over**. If you get no data, swap those two first.
+TX and RX cross over. If you get no data, swap those two first.
 
-> ⚠️ **Never use GPIO1/GPIO3 (`TX0`/`RX0`) on the DevKitC.** They are wired to the onboard
-> USB-serial chip; the receiver would fight the USB bridge and flashing would stop working.
+> ⚠️ **Power the receiver properly.** It pulls 150–300 mA. Feeding it from a DevKitC's onboard
+> regulator causes boot loops that look like corrupted firmware.
+> See [HARDWARE.md → Power](HARDWARE.md#power).
 
-> ⚠️ **Power is the number one cause of boot loops.** The K803 pulls 150–300 mA during
-> acquisition. Details, symptoms and the fix are in [HARDWARE.md](HARDWARE.md#power).
+Full teardown, pinouts and assembly: **[HARDWARE.md](HARDWARE.md)**
 
-### 3. Flash it
+---
 
-On a **XIAO ESP32C6** it is 1-click from Chrome or Edge — no toolchain, no Arduino IDE, no
-drivers:
+## Flash it
 
-<p align="center">
-  <a href="https://hmd83.github.io/ESP_RTK_ROVER/install/"><b>⚡ → Flash from your browser</b></a>
-</p>
+**XIAO ESP32C6 — one click, no toolchain:**
+**[hmd83.github.io/ESP_RTK_ROVER/install](https://hmd83.github.io/ESP_RTK_ROVER/install/)**
+— Chrome or Edge on desktop.
 
-**ESP32 DevKitC users build from source** — deliberately. WROOM and WROVER need different
-GNSS pins, SPP and BLE are different firmwares, and the SPP build needs its own partition
-table; one published image would boot-loop on a good share of those boards.
+**ESP32 DevKitC — build from source.** No prebuilt image on purpose: WROOM and WROVER need
+different GNSS pins, and SPP and BLE are different firmwares.
 
 ```powershell
-pio run -e xiao_esp32c6_ble -t upload   # XIAO ESP32-C6, BLE
+pio run -e xiao_esp32c6_ble -t upload   # XIAO ESP32C6, BLE
 pio run -e esp32dev_spp     -t upload   # ESP32 DevKitC, Bluetooth Classic
 pio device monitor                      # console @ 115200
 ```
 
-### 4. Connect your GIS app
+Details: **[FLASHING.md](FLASHING.md)**
+
+---
+
+## Connect your phone
 
 <p align="center">
-  <img src="media/swmaps-connect.jpeg" alt="SW Maps Bluetooth device selection showing the ESP32-RTK rover" width="300">
+  <img src="media/swmaps-connect.jpeg" alt="SW Maps GNSS Connection dialog" width="265">
+  &nbsp;&nbsp;
+  <img src="media/swmaps-rtk-fix.jpeg" alt="SW Maps showing RTK FIX" width="265">
 </p>
 
-**SW Maps (Android / iOS)** — the reference setup:
+In **SW Maps** (Android / iOS):
 
-1. **☰ → Bluetooth GNSS** to open **GNSS Connection**
-2. **Connection Mode**: `Bluetooth LE` for the XIAO build, `Bluetooth` (Classic) for the
-   DevKitC SPP build
-3. **Devices** → pick `ESP32-RTK-XXXX` (here `ESP32-RTK-4AAE`).
-   BLE builds show up in the app's own scanner; Classic builds must first be paired from the
-   phone's system Bluetooth menu.
-4. **Instrument Model**: `Generic NMEA`
-5. **Instrument Height**: your pole height in metres, if you want SW Maps to reduce to the
-   ground mark
-6. **Connect**
-7. **☰ → NTRIP Client** → caster host, port, mount point, user, password → **Connect**
-8. Watch the status bar go `SINGLE` → `FLOAT` → **`RTK FIX`**
+1. **☰ → Bluetooth GNSS**
+2. **Connection Mode**: `Bluetooth LE` for the XIAO, `Bluetooth` for the DevKitC SPP build
+3. Pick `ESP32-RTK-XXXX`
+4. **Instrument Model**: `Generic NMEA` — set **Instrument Height** to your pole length
+5. **Connect**
+6. **☰ → NTRIP Client** → your caster details → **Connect**
+7. Wait for `SINGLE` → `FLOAT` → **`RTK FIX`**
 
-Verified apps:
+Also works with **QField**, **Mergin Maps**, **Mapit GIS**, and Windows collectors over SPP.
 
-| App | Platform | Transport |
-|---|---|---|
-| SW Maps | Android, iOS | BLE + Classic |
-| QField | Android, iOS | BLE + Classic |
-| Mergin Maps | Android, iOS | BLE + Classic |
-| Mapit GIS | Android | BLE + Classic |
-| Lefebure NTRIP Client | Android | Classic (SPP) |
-| Windows GIS / serial collectors | Windows | Classic (SPP) over a virtual COM port |
-| nRF Connect *(diagnostics)* | Android, iOS | BLE |
+Corrections come from your phone, not the ESP32 — the phone already has the internet connection.
+Free NTRIP networks such as **Centipede-RTK** or **RTK2go** work, as do national services.
+
+> Note: SW Maps **subtracts** the instrument height from the elevation it stores. Enter your pole
+> length and it records the ground point; leave it empty and it records the antenna.
 
 ---
 
-## Diagnostic dashboard
+## Live dashboard
 
-### ▶ [Open the live dashboard](https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html)
+**[Open the dashboard →](https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html)**
 
-Hosted on GitHub Pages — nothing to install. Open it in **Chrome or Edge** (desktop or
-Android), hit **Connect**, and pick the rover. It subscribes to the Nordic UART service and
-decodes the stream live.
+One self-contained HTML file. Connects to the rover over Web Bluetooth in Chrome or Edge and
+decodes the stream live: fix quality, position, σ values, DOPs, correction age, and a raw NMEA
+log with checksum errors highlighted. Nothing is uploaded anywhere — your position stays in your
+browser.
 
-The page is `web/rtk-monitor.html`: one self-contained file, no build step, no server, no
-dependencies, no telemetry. Your position never leaves the browser. Save it locally and it
-works offline exactly the same.
+---
 
-| Panel | Shows |
+## Documentation
+
+| | |
 |---|---|
-| Fix banner | `RTK FIXED` / `RTK FLOAT` / `DGPS` / `SINGLE` / `NO FIX`, colour-coded; sats, HDOP, correction age, base ID, UTC |
-| Position | Latitude/longitude to 8 decimals, DMS, one-click copy, "open in Maps" |
-| GGA | MSL altitude, geoid separation, **derived ellipsoidal height**, sats used, HDOP, correction age, base ID |
-| Quality & motion | σ latitude / σ longitude / σ altitude from GST, PDOP, VDOP, speed, course, date |
-| Raw NMEA | Timestamped rolling log (400 lines), **checksum failures highlighted in red**, pause/clear |
-| Footer | Bytes, sentence count, live B/s, bad-checksum counter, age of last fix |
+| **[HARDWARE.md](HARDWARE.md)** | Teardown, pinout, wiring, power, antenna, assembly |
+| **[COMMANDS.md](COMMANDS.md)** | The ComNav K803 command set — base → rover, NMEA rates, recovery |
+| **[FLASHING.md](FLASHING.md)** | Web flashing, PlatformIO, esptool, troubleshooting |
 
-Correction age is colour-graded (green < 5 s, amber 5–10 s, red > 10 s) because stale
-corrections are the usual reason a fixed solution silently drops to float.
-
-> Web Bluetooth is Chromium-only. Safari and Firefox do not implement it. The hosted link is
-> served over `https://`, which is the secure context it needs; a local copy opened with
-> `file://` works too.
-
-> **Placeholder:** `media/dashboard.png` — screenshot of the dashboard with a live RTK fix.
-
----
-
-## Configuration
-
-`src/config.h`, with per-board overrides in `platformio.ini`:
-
-| Setting | Default | Notes |
-|---|---|---|
-| `GNSS_BAUD` | `115200` | K803 COM1 rate |
-| `GNSS_INIT_K803` | `1` | Set `0` for an already-configured receiver, or a non-ComNav one |
-| `GNSS_CMD_PORT` | `"COM1"` | The **receiver's** port you wired to — not a PC COM port |
-| `GNSS_CMD_WAIT_MS` | `600` | Settle time per command; the whole sequence is ~13 s |
-| `LINK_DEVICE_NAME` | `ESP32-RTK` | BLE appends `-XXXX`; SPP uses it verbatim |
-| `SPP_PIN` | *(off)* | Uncomment to force a legacy pairing PIN |
-| `BLE_TX_POWER_DBM` | `9` | −12…+20; more range costs current |
-| `BLE_ENABLE_BONDING` | `1` | "Just Works" pairing for apps that insist on a bond |
-| `UPLINK_FLUSH_MS` | `12` | Max hold time for a partial packet |
-| `UART_RX_BUF` | `4096` | Must absorb a radio stall without losing bytes |
-| `DEBUG_USB` | `1` | Set `0` to silence the console |
-
-Receiver-side configuration — every command, why it is there, and how to change output rates:
-**[COMMANDS.md](COMMANDS.md)**
-
----
-
-## Status LED
-
-| Pattern | Meaning |
-|---|---|
-| Slow blink, ~600 ms | Waiting for a phone |
-| Short blip every 2 s | Phone connected, link ready |
-
-The DevKitC LED (GPIO2) is active-high; the XIAO's onboard LED is active-low and the build
-sets `LED_ACTIVE_LOW=1` for it.
-
----
-
-## Troubleshooting
-
-The console prints a throughput line every 5 s — read it first:
-
-```
-[STAT] BLE linked  up 512 B/s (25600)  down 240 B/s (7200)
-```
-
-- `up > 0` → the receiver is talking **and** the phone link is alive
-- `up = 0` while `linked` → the receiver side is wrong (wiring, baud, or init failed)
-- `down > 0` → RTCM corrections are actually reaching the receiver
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| Phone never sees `ESP32-RTK` | Wrong build flashed | Boot log prints the active transport: `[SYS] … via SPP` / `via BLE` |
-| Device appears in the app but not in the system Bluetooth menu | Normal for BLE | BLE peripherals are discovered by the app, not paired from the system menu |
-| Paired, but no position | TX/RX swapped (most common), wrong baud, no common ground | Swap the data pair; check `GNSS_BAUD`; verify GND |
-| Boot loop, `invalid header: 0xffffffff`, `TG0WDT_SYS_RESET` | **Power sag**, not firmware | Separate supply for the receiver, sharing only GND. [Details](HARDWARE.md#power) |
-| Init log shows `REJECTED` lines | Port still in RTCM auto-detect, or a command your firmware build does not support | [COMMANDS.md → Recovery](COMMANDS.md#recovery-when-the-port-stops-answering) |
-| `SINGLE` forever, never `FLOAT` | Corrections not arriving | Check `down` in `[STAT]`; check the app's NTRIP status; check mount point |
-| `FLOAT`, never `FIXED` | Poor sky view, long baseline, multipath | Get clear sky, use the ground plane, shorten the baseline |
-| Fix drops to `FLOAT` intermittently | Correction age climbing | Watch the dashboard's amber/red age; usually cellular dropouts |
-
-A boot-loop bisection trick: connect **GND only**, then **VCC**, then the data lines, one at
-a time. Whichever wire first triggers the loop names the culprit. If it loops with GND + VCC
-and no data wires attached, it is definitively power.
-
----
-
-## Repository layout
-
-```
-src/
-  main.cpp        bidirectional pump, stats, status LED
-  config.h        all tunables
-  gnss_init.cpp   ComNav K803 rover configuration sequence
-  link.h          transport interface (SPP and BLE implement it)
-  link_spp.cpp    Bluetooth Classic SPP
-  link_ble.cpp    BLE Nordic UART Service (NimBLE)
-web/
-  rtk-monitor.html  offline Web Bluetooth diagnostic dashboard
-install/            prebuilt XIAO ESP32C6 image + ESP Web Tools installer page
-media/              teardown, wiring and field photos
-platformio.ini      three build environments
-```
-
-`main.cpp` moves bytes and does not know which transport is in use.
-
----
-
-## Roadmap
-
-- [ ] **Characterise the antenna phase-centre offset** against a published control point, on
-      separate days, and publish the measured bias — procedure, candidate points and error
-      budget in [docs/accuracy-test.md](docs/accuracy-test.md)
-- [ ] On-board NTRIP client over Wi-Fi (rover works without a phone)
-- [ ] Wi-Fi AP + captive-portal configuration (caster credentials, baud, device name)
-- [ ] Dashboard served from the ESP32 itself
-- [ ] Web Serial mode in the dashboard, for USB-connected diagnostics
-- [ ] Configurable NMEA rate (5 Hz / 10 Hz) without a rebuild
-- [ ] Raw observation logging to SD for post-processing (PPK / RINEX)
-- [ ] 3D-printable ESP32 tray that clips inside the dome
-- [ ] Pre-built release binaries + hosted ESP Web Tools installer page
-
----
-
-## Contributing
-
-Issues and pull requests are welcome — especially:
-
-- Confirmation (or corrections) of the K803 command behaviour on other firmware builds
-- Pinouts for other ECOVACS GOAT base-station board revisions
-- App compatibility reports, good or bad
-
-Please include your board revision, the boot log, and a `[STAT]` line when reporting a
-hardware problem.
+Firmware layout: `src/main.cpp` moves bytes, `src/gnss_init.cpp` configures the K803,
+`src/link_ble.cpp` and `src/link_spp.cpp` implement the two transports.
 
 ---
 
 ## Credits
 
-**Hussein Daj** — hardware reverse engineering, teardown, K803 command discovery, field
-testing and validation.
+**Hussein Daj** — hardware reverse engineering, teardown, K803 command discovery, field testing.
 
-**Claude (Anthropic)** — project partner: firmware architecture, BLE/SPP transport layer,
-diagnostic dashboard and documentation.
+**Claude (Anthropic)** — project partner: firmware architecture, dashboard and documentation.
 
-### Standing on
+Thanks to **[Seeed Studio](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html)**
+for the XIAO ESP32C6, and to
+**[NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino)**,
+**[pioarduino](https://github.com/pioarduino/platform-espressif32)** and
+**[ESP Web Tools](https://github.com/esphome/esp-web-tools)**.
 
-- **[Seeed Studio](https://www.seeedstudio.com/)** for the
-  [XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html) — the
-  board that makes the compact build possible, and a genuinely good piece of hardware
-  documentation. 👋
-- **[NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino)** by h2zero — a BLE stack that
-  fits and behaves.
-- **[pioarduino](https://github.com/pioarduino/platform-espressif32)** — Arduino core 3.x for
-  the C6.
-- **[ESP Web Tools](https://github.com/esphome/esp-web-tools)** by ESPHome — browser flashing.
-- Everyone who ever posted a GNSS teardown instead of keeping it to themselves.
-
----
+Thanks also to the GNSS professionals who pushed back on the first version of these accuracy
+claims — the limitations section exists because of them.
 
 ## License
 
@@ -493,10 +255,8 @@ diagnostic dashboard and documentation.
 
 ## Disclaimer
 
-Not affiliated with, endorsed by, or supported by **ECOVACS**, **ComNav Technology** or
-**SinoGNSS**. Opening the base station voids any remaining warranty and permanently ends its
-usefulness to the mower it came with. Mains-free, low-voltage work only — but you are still
-responsible for what you solder. Trademarks belong to their respective owners.
+Not affiliated with, endorsed by or supported by **ECOVACS**, **ComNav Technology** or
+**SinoGNSS**. Opening the base station voids any warranty and ends its usefulness to the mower.
+Trademarks belong to their owners.
 
-This is a hobbyist instrument. Do not use it for cadastral, legal, aviation, marine or
-safety-of-life work.
+**This is a hobbyist instrument. It is not certified for any regulated purpose.**

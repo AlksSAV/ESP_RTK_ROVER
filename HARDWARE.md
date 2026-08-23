@@ -113,7 +113,9 @@ feature set depends on its authorization** — confirm with `LOG VERSION`
 | Time pulse | 1 PPS output |
 | Typical draw | 150–300 mA during acquisition — see [Power](#power) |
 
-Observed in the field on this build: **ΔH 6 mm, ΔV 9 mm** with a 1.0 s correction age.
+Observed in the field on this build: RTK FIX with correction age around 1 s. The receiver's
+own precision estimates run to a few millimetres — but read
+[README → How accurate is it?](README.md#how-accurate-is-it) before believing them.
 
 > The COM ports are **3.3 V logic** and connect directly to an ESP32 or ESP32-C6 with no
 > level shifter. Do **not** feed 5 V into a COM pin. If you are unsure about your board
@@ -294,10 +296,10 @@ rejection you are getting for 50 €.
 
 > ⚠️ **It is not a characterised antenna.** There is no ANTEX calibration for it, so the
 > offset between the electrical phase centre and any physical point you measure to is unknown
-> — systematic, mostly in height, and invisible in the receiver's own σ estimates. Read
-> [README → Antenna phase centre](README.md#antenna-phase-centre--the-uncharacterised-part)
-> before trusting a height. Measuring to a consistent point and orienting the dome the same
-> way every setup makes that offset constant, which is what makes it calibratable later.
+> — systematic, mostly in height, and invisible in the receiver's own σ estimates. See
+> [README → How accurate is it?](README.md#how-accurate-is-it) before trusting a height.
+> Measuring to a consistent point and orienting the dome the same way every setup at least
+> makes that offset constant.
 
 Practical siting matters more than any modification:
 

@@ -1,1 +1,0 @@
-{"type":"FeatureCollection","name":"test2","features":[{"type":"Feature","properties":{"REMARKS":"with 1.12"},"geometry":{"type":"Point","coordinates":[8.219788182,48.808153623,174.962]}},{"type":"Feature","properties":{"REMARKS":"without 1.12"},"geometry":{"type":"Point","coordinates":[8.219788187,48.80815358,176.083]}}]}
