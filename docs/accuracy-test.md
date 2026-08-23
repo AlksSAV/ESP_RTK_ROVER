@@ -445,10 +445,68 @@ Evidence: [`session-02-ih-1120.jpeg`](session-02-ih-1120.jpeg),
 [`session-02-ih-0.jpeg`](session-02-ih-0.jpeg),
 [`convention-check.geojson`](convention-check.geojson).
 
+### Session 3 — 2026-08-23 18:30 — `7115900096` — one lookup from a result
+
+Rehearsal at the walking-distance school point. It turned into the most complete session so far:
+**everything is measured except ζ.**
+
+| | |
+|---|---|
+| Published NHN height of bolt | 129.650 m |
+| Bolt height above slab, from the record | 0.28 m (*"0,28 m über Betonplattenboden"*) |
+| → slab (NHN) | 129.370 m |
+| Recorded `Elv` (pole tip, reduced) | 178.078 m |
+| Instrument height | 1.120 m |
+| → phase centre, ellipsoidal | 179.198 m |
+| **Implied ζ** = `Elv − slab` | **48.708 m** |
+| Fix | RTK Fix, age 1 s, baseline 3 389.2 m, ref 2042 |
+| Satellites / DOP | 14 of 34 · PDOP 0.90 · VDOP 0.70 |
+| Engine σ | H 0.007 m · V 0.011 m |
+| Average count | 1 — single epoch again |
+
+Evidence: [`session-03-swmaps.jpeg`](session-03-swmaps.jpeg).
+
+**The whole test now reduces to one subtraction:**
+
+```
+offset = 48.708 − ζ_true
+```
+
+| ζ_true from BKG | Resulting offset |
+|---|---|
+| 48.60 m | +10.8 cm |
+| 48.65 m | +5.8 cm |
+| 48.708 m | 0.0 cm |
+| 48.75 m | −4.2 cm |
+| 48.80 m | −9.2 cm |
+
+**Independent support from Session 1.** Bühl required ζ ≳ 48.702 m for its geometry to close;
+this site implies 48.708 m. Two setups 14 km apart, agreeing to within a centimetre. That is
+encouraging, but not proof — ζ varies across the landscape, and a few centimetres of real
+variation over 14 km is entirely normal. It does mean neither session contains a gross blunder.
+
+**Standing assumptions — each one is a way this could be wrong:**
+
+1. The pole tip stood **on the concrete slab, directly below the bolt**. If it stood on soil, a
+   step, or a metre away on sloping ground, the 0.28 m does not apply.
+2. The instrument height is exactly **1.120 m** to the defined ARP. Still not tape-verified.
+3. The slab has not been re-laid since the point was recorded.
+
+**Site quality was as predicted — and it shows.** σ rose to 7 mm H / 11 mm V here, against
+3 mm / 4 mm at the open convention-check setup. A school forecourt with buildings on several
+sides is a multipath environment; this document listed the point as suitable for *rehearsing the
+transfer, not for the result*. With `Average Count: 1`, a single epoch in that environment is
+the weakest input in the chain.
+
+**So: treat this as a provisional value.** The publishable number should come from
+[`7215900043`](#baden-baden--haueneberstein--nearer-alternative), in the open, with averaged
+capture and repeat visits.
+
 ### Session log
 
 | Date | Point | Sessions | h_measured | H_measured | H_ARP | Offset | Notes |
 |---|---|---|---|---|---|---|---|
+| 2026-08-23 | 7115900096 | 1 epoch | 178.078 m (tip) | — | 129.370 m (slab) | **48.708 − ζ** | Provisional; enclosed site, σV 11 mm |
 | 2026-08-23 | *(convention check)* | 2 epochs | — | — | — | — | SW Maps subtracts instrument height, confirmed to 1 mm |
 | 2026-08-22 | 7314900059 | 1 epoch | 188.257 m | — | — | — | RTK Fix, PDOP 0.80, 7.7 km baseline. Frame validated; mark not found |
 
