@@ -58,7 +58,7 @@ convenient one nearby.
 All are **Höhenfestpunkte 1. Ordnung**, from the LGL AFIS open-data WFS. Heights are DHHN2016
 (NHN), given to the millimetre.
 
-**Test in the Rhine plain around Bühl, not in the Bühlertal valley.** The phase-centre offset
+**Test in open, flat ground — the Rhine plain, not the Bühlertal valley.** The phase-centre offset
 is a property of the antenna, not of the site — so measure it at the best site reachable. The
 valley imposes a terrain horizon of 20°+ over whole sectors, which biases geometry
 systematically and in the same direction every session. That is precisely the error class this
@@ -107,6 +107,46 @@ This is the point where a first attempt failed to find the mark by searching the
 > Ecke; 1,1 m unter Straßenhöhe, in Bodenhöhe, Inschrift: Höhenmarke"*
 
 Open, but sits 1.1 m below road level — a slightly worse horizon.
+
+### Baden-Baden / Haueneberstein — nearer alternative
+
+Distances are from the 2026-08-23 convention-check setup at 442714.7 / 5406423.0.
+
+**★ `7215900043` — 126.146 m — L67, bergseitiges Feldkreuz** · 1.48 km · [map](https://www.google.com/maps?q=48.798437,8.205919) · UTM32 `441685.14 / 5405353.47`
+> Mauerbolzen, horizontal eingebracht
+> *"Landesstraße 67 von Haueneberstein zur Bundesstraße 3, bergseitiges Feldkreuz; 18 m südöstl.
+> der L67, Sockel, hinten; 0,22 m von der nordöstlichen Sockelkante, Inschrift: Höhenmarke"*
+
+**The best candidate anywhere in this document.** A field cross standing 18 m off the road in
+open farmland — clear sky in every direction, no traffic at the mark, and the bolt is on the
+*rear* of the plinth, 0.22 m from the north-east edge, stamped „Höhenmarke". Closer to home than
+Bühl, and better than the Bühl Feldkreuz.
+
+**`7115901029` — 133.541 m — Stehniete, Radweg culvert** · 1.43 km · [map](https://www.google.com/maps?q=48.814221,8.236998) · UTM32 `443985.03 / 5407084.60`
+> Stehniete
+> *"K3711 Haueneberstein–Kuppenheim, Durchlass des Hornungsgraben … am Radweg nach Kuppenheim;
+> 35 m südwestl. von Mitte der K3711 …, Auslauf links; 0,25 m von südwestlicher Außenkante;
+> 0,50 m von nordwestlicher Außenkante"*
+
+A *Stehniete* is a brass standing rivet — an upward-facing mark you can set a staff on directly.
+On a cycle path, so away from traffic. The description is fiddly; take it with you.
+
+**`7115900100` — 140.349 m — L67, Einlaufschacht** · 1.90 km · [map](https://www.google.com/maps?q=48.817276,8.241701) · UTM32 `444333.69 / 5407420.81`
+> Mauerbolzen, vertikal eingebracht
+> *"6,55 m von Straßenmitte, zwischen Straße und Wirtschaftsweg; 3,80 m von Wegmitte,
+> südöstliche Schachtwand, Mitte, in Bodenhöhe, Inschrift: Höhenmarke"*
+
+Vertical bolt at ground level between road and farm track — open, but only 6.55 m from the road
+centre. Two independent distances make it easy to find.
+
+**`7115900096` — 129.650 m — Alte Dorfstraße 12, Schule** · 0.29 km · [map](https://www.google.com/maps?q=48.805541,8.219930) · UTM32 `442722.13 / 5406132.43`
+> Mauerbolzen, horizontal · *"…östliche Ecke des Gebäudes; 0,28 m über Betonplattenboden"*
+
+Walking distance, but a school forecourt in a village — buildings on several sides. Useful for
+rehearsing the height transfer, not for the result.
+
+> ⚠️ **`7115900027`** (Rathaus, Rathausplatz 1) reads *"0,12 m **unter** Boden"* — the bolt is
+> 12 cm **below** ground level. Skip it.
 
 ### Fallback — town centre
 
