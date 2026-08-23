@@ -280,10 +280,12 @@ control point and the measured RTK point.
 | | |
 |---|---|
 | Published NHN height of mark | 139.555 m |
-| Measured ellipsoidal height | 188.257 m |
-| Difference | **+48.702 m** |
+| Recorded ellipsoidal height | 188.257 m |
+| SW Maps instrument height | applied before recording — **value unconfirmed, 1.12 m or 1.20 m** |
+| → recorded value represents | the **pole tip**, already reduced; not the antenna |
+| Difference vs mark | **+48.702 m** |
 | ζ sanity band (47–50 m) | ✅ **pass** |
-| Antenna height above mark | ❌ not measured — bolt not located on site |
+| Height of pole tip above the bolt | ❌ unknown — bolt not located on site |
 | **Phase-centre offset** | **not derivable from this session** |
 
 **What this session established.** 48.702 m falls inside the quasigeoid band, so there is no
@@ -299,6 +301,20 @@ sinks most first attempts, and it is now ruled out.
 
 — one equation, two unknowns. It needs `ζ_true` from the BKG GCG2016 service at
 48.6798 N / 8.1279 E, and the tape measurement from the bolt to the ARP.
+
+**A geometric inconsistency worth chasing.** With the instrument height applied, the recorded
+value is the pole tip, so `pole tip (NHN) = 188.257 − ζ_true`. For ζ in 48.0–48.5 m that puts
+the tip 0.2–0.7 m *above* the bolt — impossible if the pole stood on the ground and the bolt is
+on the pillar face above it. The geometry only closes for ζ ≳ 48.7 m, the top of the plausible
+band. So one of these is true, and ζ_true decides which:
+
+- the instrument height was not in fact applied to the stored point,
+- the ground at the setup was higher than the bolt (the pillar may sit downslope of the path), or
+- ζ at this location really is ≈ 48.7 m.
+
+**Open item: the instrument height itself is unconfirmed** — reported as both 1.12 m and 1.20 m.
+An 8 cm ambiguity is four times the resolution this test is aiming at. It must be settled with a
+tape against a photographed reference feature before any session is reducible.
 
 **Why the mark was not found.** The bolt is **horizontal, on the north-east face** of the
 granite pillar. The search was made on the top surface. See the shortlist entry above; the
@@ -316,7 +332,7 @@ foundation plate, unambiguous description. Measure bolt-to-ARP before leaving th
 
 | Date | Point | Sessions | h_measured | H_measured | H_ARP | Offset | Notes |
 |---|---|---|---|---|---|---|---|
-| 2026-08-23 | 7314900059 | 1 | 188.257 m | — | — | — | Frame validated; mark not found |
+| 2026-08-23 | 7314900059 | 1 | 188.257 m (pole tip) | — | — | — | Frame validated; mark not found; IH unconfirmed |
 
 ---
 
