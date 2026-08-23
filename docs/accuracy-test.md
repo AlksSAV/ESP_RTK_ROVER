@@ -193,7 +193,9 @@ against a 2 cm floor.
    photo. → `H_ARP` (NHN).
 3. Connect SAPOS, wait for **RTK FIXED**, then let it settle at least **5 minutes** before
    recording anything.
-4. Log **≥ 15 minutes** of NMEA at 1 Hz without touching the setup.
+4. Log **≥ 15 minutes** of NMEA at 1 Hz without touching the setup, and record the point
+   with SW Maps' **averaged** capture — never a single epoch (`Average Count: 1` gives you the
+   engine's opinion of one instant, with no defence against a momentary multipath excursion).
 5. Record correction age, satellite count and PDOP throughout. Discard the session if the
    solution drops out of fixed.
 6. **Repeat on a different day and at a different time of day.** Different satellite geometry
@@ -272,7 +274,7 @@ measured and stated is more useful than one whose bias is unknown and flattering
 
 ## Results
 
-### Session 1 — 2026-08-23 — `7314900059` — frame validated, offset not yet derivable
+### Session 1 — 2026-08-22 16:42 — `7314900059` — frame validated, offset not yet derivable
 
 Raw data: [`Antenna_Layer1.geojson`](Antenna_Layer1.geojson) — two features, the published
 control point and the measured RTK point.
@@ -280,13 +282,21 @@ control point and the measured RTK point.
 | | |
 |---|---|
 | Published NHN height of mark | 139.555 m |
-| Recorded ellipsoidal height | 188.257 m |
-| SW Maps instrument height | applied before recording — **value unconfirmed, 1.12 m or 1.20 m** |
-| → recorded value represents | the **pole tip**, already reduced; not the antenna |
+| Recorded elevation (`Elv`) | 188.257 m |
+| SW Maps instrument height | **1.120 m**, entered before recording |
 | Difference vs mark | **+48.702 m** |
 | ζ sanity band (47–50 m) | ✅ **pass** |
+| Fix quality | RTK Fix, age of differential 1 s |
+| Baseline / reference station | 7 693.6 m / ID 0744 |
+| Satellites | 16 in use, 35 in view |
+| DOP | PDOP 0.80 · HDOP 0.50 · VDOP 0.70 |
+| Engine σ | H 0.002 m · V 0.004 m |
+| **Average count** | **1 — single epoch, not an occupation** |
 | Height of pole tip above the bolt | ❌ unknown — bolt not located on site |
 | **Phase-centre offset** | **not derivable from this session** |
+
+Evidence: [`session-01-swmaps.jpeg`](session-01-swmaps.jpeg),
+[`Antenna_Layer1.geojson`](Antenna_Layer1.geojson).
 
 **What this session established.** 48.702 m falls inside the quasigeoid band, so there is no
 frame or sign error in the chain. It also proves the export carries **ellipsoidal** height and
@@ -302,19 +312,27 @@ sinks most first attempts, and it is now ruled out.
 — one equation, two unknowns. It needs `ζ_true` from the BKG GCG2016 service at
 48.6798 N / 8.1279 E, and the tape measurement from the bolt to the ARP.
 
-**A geometric inconsistency worth chasing.** With the instrument height applied, the recorded
-value is the pole tip, so `pole tip (NHN) = 188.257 − ζ_true`. For ζ in 48.0–48.5 m that puts
-the tip 0.2–0.7 m *above* the bolt — impossible if the pole stood on the ground and the bolt is
-on the pillar face above it. The geometry only closes for ζ ≳ 48.7 m, the top of the plausible
-band. So one of these is true, and ζ_true decides which:
+**Open item — does `Elv` already have the instrument height taken off?** This is now the one
+thing blocking the reduction, and the geometry hints at the answer:
 
-- the instrument height was not in fact applied to the stored point,
-- the ground at the setup was higher than the bolt (the pillar may sit downslope of the path), or
-- ζ at this location really is ≈ 48.7 m.
+| If `Elv` is… | pole tip (NHN) = | vs bolt at 139.555 m |
+|---|---|---|
+| **already reduced** (tip) | `188.257 − ζ` | tip lands *above* the bolt unless ζ ≳ 48.70 |
+| **not reduced** (antenna) | `188.257 − 1.120 − ζ` | tip 0.4–1.0 m *below* the bolt for ζ = 48.0–48.6 |
 
-**Open item: the instrument height itself is unconfirmed** — reported as both 1.12 m and 1.20 m.
-An 8 cm ambiguity is four times the resolution this test is aiming at. It must be settled with a
-tape against a photographed reference feature before any session is reducible.
+The bolt sits on the *face* of the pillar, above ground, so the pole tip must be **below** it.
+The unreduced reading gives that naturally across the whole plausible ζ range; the reduced
+reading requires ζ to sit at the very top of the band. Suggestive, not conclusive.
+
+**Decisive test, two minutes, no travel:** set the pole up anywhere, record one point with
+instrument height `0.000` and a second with `1.120` **without moving the pole**. If the two
+`Elv` values differ by exactly 1.120 m, SW Maps applies the reduction; if they are identical, it
+merely stores the value as an attribute. Settle this once and record the convention here.
+
+**Also note `Average Count: 1`.** This was a single epoch, not the 15-minute occupation the
+procedure calls for. The quoted σ of 4 mm is the engine's instantaneous opinion of one epoch and
+carries no protection against a momentary multipath excursion. Future sessions must use SW Maps'
+averaged capture.
 
 **Why the mark was not found.** The bolt is **horizontal, on the north-east face** of the
 granite pillar. The search was made on the top surface. See the shortlist entry above; the
@@ -332,7 +350,7 @@ foundation plate, unambiguous description. Measure bolt-to-ARP before leaving th
 
 | Date | Point | Sessions | h_measured | H_measured | H_ARP | Offset | Notes |
 |---|---|---|---|---|---|---|---|
-| 2026-08-23 | 7314900059 | 1 | 188.257 m (pole tip) | — | — | — | Frame validated; mark not found; IH unconfirmed |
+| 2026-08-22 | 7314900059 | 1 epoch | 188.257 m | — | — | — | RTK Fix, PDOP 0.80, 7.7 km baseline. Frame validated; mark not found |
 
 ---
 
