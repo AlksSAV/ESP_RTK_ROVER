@@ -228,7 +228,10 @@ within a few metres, then transfer the height across. The transfer costs a few m
 against a 2 cm floor.
 
 1. Set the rover up within a few metres of the mark, **choosing the spot for sky view** — away
-   from walls, vehicles, trees and overhead lines.
+   from walls, vehicles, trees and overhead lines. **Do not set up directly over the mark** if
+   that puts the antenna against a wall or plinth: transferring the height exists precisely so
+   the antenna can stand in the open. Proximity to the mark buys you nothing; sky view buys you
+   everything.
 2. Transfer the mark's height to your ARP with staff and level. Record the transfer, with a
    photo. → `H_ARP` (NHN).
 3. Connect SAPOS, wait for **RTK FIXED**, then let it settle at least **5 minutes** before
@@ -485,12 +488,25 @@ this site implies 48.708 m. Two setups 14 km apart, agreeing to within a centime
 encouraging, but not proof — ζ varies across the landscape, and a few centimetres of real
 variation over 14 km is entirely normal. It does mean neither session contains a gross blunder.
 
-**Standing assumptions — each one is a way this could be wrong:**
+**Standing assumptions:**
 
-1. The pole tip stood **on the concrete slab, directly below the bolt**. If it stood on soil, a
-   step, or a metre away on sloping ground, the 0.28 m does not apply.
-2. The instrument height is exactly **1.120 m** to the defined ARP. Still not tape-verified.
-3. The slab has not been re-laid since the point was recorded.
+1. ✅ **Confirmed** — the pole stood directly above the bolt, tip on the concrete slab, so the
+   0.28 m applies and the tip was at 129.370 m NHN.
+2. ❌ The instrument height is exactly **1.120 m** to the defined ARP — still not tape-verified.
+3. ❌ The slab has not been re-laid since the point was recorded.
+
+> **The rejected reading, for the record.** Had the pole tip instead *rested on the crown of the
+> bolt*, the tip would sit at 129.650 m and the implied ζ would be **48.428 m** — 28 cm lower,
+> giving an offset near −27 cm. That is rejected on two grounds: an offset of that size is
+> implausible for any patch antenna, and it contradicts Session 1, whose geometry requires
+> ζ ≳ 48.702 m. Both readings were checked before adopting 48.708.
+
+**⚠️ Setting up directly above the mark defeats the method.** Standing the antenna over the bolt
+put it hard against a building wall — the single worst place for multipath, and the likely reason
+σ rose to 7 mm H / 11 mm V here. The entire point of transferring the height is that the antenna
+does **not** have to be at the mark: put it where the sky is open, several metres clear of any
+structure, and carry the height across with staff and level. At the Feldkreuz, set up well away
+from the plinth.
 
 **Site quality was as predicted — and it shows.** σ rose to 7 mm H / 11 mm V here, against
 3 mm / 4 mm at the open convention-check setup. A school forecourt with buildings on several
