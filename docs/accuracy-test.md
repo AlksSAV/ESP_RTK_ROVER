@@ -64,33 +64,84 @@ valley imposes a terrain horizon of 20°+ over whole sectors, which biases geome
 systematically and in the same direction every session. That is precisely the error class this
 test is trying to isolate, so do not invite it.
 
-### Primary
+### Shortlist
 
-| Punktkennzeichen | NHN height | Marker | Location | UTM32 (E / N) | Map |
-|---|---|---|---|---|---|
-| **7314900059** | **139.555 m** | Pfeilerbolzen, Naturstein | Friedenskreuz path, Bühl | 435804.11 / 5392229.93 | [48.679812, 8.127890](https://www.google.com/maps?q=48.679812,8.127890) |
-| 7314900286 | 155.620 m | Mauerbolzen, vertikal | Sign foundation, free-standing | 437822.36 / 5394190.07 | [48.697648, 8.155010](https://www.google.com/maps?q=48.697648,8.155010) |
-| 7314900085 | 137.631 m | Turmbolzen mit Aufschrift TP | Rathaus tower, Bühl | 436407.90 / 5393965.88 | [48.695489, 8.135824](https://www.google.com/maps?q=48.695489,8.135824) |
+Ranked by **findability × sky view**. Every entry below is inscribed on the object itself —
+that inscription is your proof you have the right stone, plate or wall, and it is the single
+most useful field in the record.
 
-`7314900059` is the pick: a pillar bolt in natural stone on a footpath — free-standing and
-outdoors, rather than set into somebody's house wall. `7314900085` is on a tower and cannot be
-occupied; it is listed because its `TP` inscription means a trigonometric point is co-located,
-which may carry horizontal coordinates worth requesting.
+**1 · `7214900023` — 135.062 m — B3, Feldkreuz** · [map](https://www.google.com/maps?q=48.707314,8.143324) · UTM32 `436974.55 / 5395274.14`
+> Mauerbolzen, horizontal eingebracht
+> *"Bundesstraße 3, Feldkreuz; 18,50 m von Straßenmitte, nordwestl. der Straße und
+> Wirtschaftsweg, Fundamentplatte, Vorderseite, Mitte; 0,08 m unter Plattenoberkante;
+> 0,1 m über Boden, Inschrift: Höhenmarke"*
 
-### Alternates
+Open farmland, mark only 0.10 m above ground on a concrete foundation plate, and the
+description pins it to the centimetre. **The best candidate.**
 
-| Punktkennzeichen | NHN height | Marker | Location | UTM32 (E / N) | Map |
-|---|---|---|---|---|---|
-| 7314900078 | 137.547 m | Mauerbolzen, vertikal | K3764, wayside cross, Ottersweier | 435333.03 / 5391742.65 | [48.675380, 8.121567](https://www.google.com/maps?q=48.675380,8.121567) |
-| 7214900023 | 135.062 m | Mauerbolzen, horizontal | B3, field cross, Bühl | 436974.55 / 5395274.14 | [48.707314, 8.143324](https://www.google.com/maps?q=48.707314,8.143324) |
-| 7314900080 | 136.946 m | Mauerbolzen, horizontal | K3764, drainage structure, Bühl | 435621.57 / 5392370.72 | [48.681060, 8.125389](https://www.google.com/maps?q=48.681060,8.125389) |
-| 7314900008 | 140.364 m | Mauerbolzen, horizontal | Lindenkirche, Ottersweier | 435181.80 / 5391405.30 | [48.672330, 8.119566](https://www.google.com/maps?q=48.672330,8.119566) |
+**2 · `7314900078` — 137.547 m — K3764, Kreuz** · [map](https://www.google.com/maps?q=48.675380,8.121567) · UTM32 `435333.03 / 5391742.65`
+> Mauerbolzen, vertikal eingebracht
+> *"Kreisstraße 3764, Kreuz; 15,50 m nordwestl. der Straßenmitte, Fundamentplatte,
+> Vorderseite, Mitte; 0,2 m über Boden, Inschrift: Höhenmarke"*
 
-The wayside-cross and field-cross points sit in open farmland, which is good for sky view.
+Wayside cross in the open, low mark, vertical bolt.
 
-> Lat/lon are converted from the published EPSG:25832 values for map convenience only. **Use
-> the UTM32 values and the location description on site** — the map pin is approximate, the
-> published coordinate is not.
+**3 · `7314900059` — 139.555 m — Granitpfeiler, Weg zum Friedenskreuz** · [map](https://www.google.com/maps?q=48.679812,8.127890) · UTM32 `435804.11 / 5392229.93`
+> Pfeilerbolzen, Naturstein, **Bolzen horizontal**
+> *"Granitpfeiler am südlichen Rand des Weges zum Friedenskreuz, HFP an Nordostseite des
+> Pfeilers, Inschrift: Höhenmarke"*
+
+⚠️ **The bolt is horizontal, on the north-east face of the pillar — not on top of the stone.**
+This is the point where a first attempt failed to find the mark by searching the top surface.
+
+**4 · `7314900080` — 136.946 m — K3764, Rohrdurchlaß** · [map](https://www.google.com/maps?q=48.681060,8.125389) · UTM32 `435621.57 / 5392370.72`
+> Mauerbolzen, horizontal eingebracht
+> *"30 m nordwestl. der Straßenmitte, an einer talseitigen Wegabzweigung; 30 m nordöstl. einer
+> Straßenkreuzung, Auslauf, über Rohrmitte, in Weghöhe, Inschrift: Höhenmarke"*
+
+~1.5 km from #3 on the same road — the natural pairing for [Test B](#test-b--height-difference-validates-the-setup).
+
+**5 · `7314900081` — 135.689 m — K3764, Wasserschacht** · UTM32 `435671 / 5392110`
+> Mauerbolzen, vertikal eingebracht
+> *"10,60 m nordwestl. der Straßenmitte, im Grünstreifen ... auf dem Schacht, in der westlichen
+> Ecke; 1,1 m unter Straßenhöhe, in Bodenhöhe, Inschrift: Höhenmarke"*
+
+Open, but sits 1.1 m below road level — a slightly worse horizon.
+
+### Fallback — town centre
+
+Precisely described but hemmed in by buildings. Usable only because you transfer the height
+rather than occupy the mark, and even then the level run gets long.
+
+| Punkt | Height | Marker | Where |
+|---|---|---|---|
+| `7314900085` | 137.631 m | Turmbolzen mit Aufschrift `TP` | Rathaus, Ostseite, 0,48 m über Pflaster. Co-located trig point |
+| `7314900056` | 139.251 m | Mauerbolzen, horizontal | Hauptstraße 94, Amtsgericht, 0,28 m über Gehweg |
+| `7314900008` | 140.364 m | Mauerbolzen, horizontal | Lindenkirche, West-/Eingangsseite, Inschrift `1232` |
+| `7314900082` | 135.709 m | Mauerbolzen, horizontal | Hauptstraße 1a, Tankstelle, 0,20 m über Pflaster |
+
+### Reading a Lagebeschreibung
+
+| Phrase | Meaning |
+|---|---|
+| `von der Straßenmitte` | Measured from the **centre line** of the road, not the kerb |
+| `unter Sockeloberkante` | Below the top edge of the building plinth |
+| `über Gehweg / Boden / Pflaster` | Height of the bolt above the pavement or ground |
+| `Vorderseite, Mitte` | Front face of the foundation plate, centred |
+| `Inschrift: …` | Text stamped on the object — your identity confirmation |
+| `horizontal eingebracht` | Bolt protrudes **sideways from a vertical face** |
+| `vertikal eingebracht` | Bolt points **up out of a horizontal surface** |
+
+**Horizontal vs vertical is what makes a mark findable or not.** A horizontal bolt is invisible
+from above; look at the *face* named in the description, at the stated height above ground.
+
+The published height refers to the **crown of the bolt** — rest the staff foot on the bolt head,
+not on the stone or plate around it.
+
+> **Do not use these points for a horizontal check.** They are *Höhen*festpunkte: height only.
+> Their horizontal coordinates exist so you can find the object, and are not survey-grade. The
+> lat/lon above are converted from the published EPSG:25832 values for map pins only — on site,
+> navigate by the description.
 
 ### Pull the data yourself
 
@@ -221,11 +272,51 @@ measured and stated is more useful than one whose bias is unknown and flattering
 
 ## Results
 
-*Not yet run.*
+### Session 1 — 2026-08-23 — `7314900059` — frame validated, offset not yet derivable
+
+Raw data: [`Antenna_Layer1.geojson`](Antenna_Layer1.geojson) — two features, the published
+control point and the measured RTK point.
+
+| | |
+|---|---|
+| Published NHN height of mark | 139.555 m |
+| Measured ellipsoidal height | 188.257 m |
+| Difference | **+48.702 m** |
+| ζ sanity band (47–50 m) | ✅ **pass** |
+| Antenna height above mark | ❌ not measured — bolt not located on site |
+| **Phase-centre offset** | **not derivable from this session** |
+
+**What this session established.** 48.702 m falls inside the quasigeoid band, so there is no
+frame or sign error in the chain. It also proves the export carries **ellipsoidal** height and
+not MSL — two orthometric heights could not differ by 48.7 m. That is the failure mode that
+sinks most first attempts, and it is now ruled out.
+
+**Why the offset still cannot be extracted.** The measured difference is
+
+```
+48.702 m  =  ζ_true  +  (height of antenna ARP above the bolt)
+```
+
+— one equation, two unknowns. It needs `ζ_true` from the BKG GCG2016 service at
+48.6798 N / 8.1279 E, and the tape measurement from the bolt to the ARP.
+
+**Why the mark was not found.** The bolt is **horizontal, on the north-east face** of the
+granite pillar. The search was made on the top surface. See the shortlist entry above; the
+`vermarkung_name` field distinguishes `horizontal` from `vertikal eingebracht` and is the field
+to read before travelling.
+
+**Horizontal residual is not reported.** The 0.17 m horizontal difference between the two
+features in the file is meaningless — `7314900059` is a height-only point whose horizontal
+coordinate is not survey-grade, and the antenna was deliberately not set over the mark.
+
+**Next session:** `7214900023` (B3 Feldkreuz) — open farmland, mark 0.10 m above ground on a
+foundation plate, unambiguous description. Measure bolt-to-ARP before leaving the point.
+
+### Session log
 
 | Date | Point | Sessions | h_measured | H_measured | H_ARP | Offset | Notes |
 |---|---|---|---|---|---|---|---|
-| — | — | — | — | — | — | — | — |
+| 2026-08-23 | 7314900059 | 1 | 188.257 m | — | — | — | Frame validated; mark not found |
 
 ---
 
