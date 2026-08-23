@@ -219,6 +219,33 @@ Suggested pair: `7314900059` and `7314900080` — ~1.5 km apart, both on the sam
 
 ## Reduction
 
+### The SW Maps instrument-height convention
+
+**SW Maps subtracts the instrument height from the elevation it stores** — verified in the
+[convention check](#convention-check--2026-08-23). Therefore:
+
+```
+Elv (with instrument height H entered) = ellipsoidal height of the pole tip
+Elv (with the field cleared)           = ellipsoidal height of the antenna phase centre
+ARP / phase centre                     = Elv + H
+```
+
+**For this test, clear the instrument height field and record raw.** What you want to
+characterise is where the phase centre sits relative to a physical feature you can measure, so
+recording the receiver's own unmodified height removes a transformation and keeps the assumption
+under test visible. With `h_PC` from a cleared field:
+
+```
+H_PC          = h_PC − ζ_true                       (normal height of the phase centre)
+H_ARP_expect  = H_bolt + (measured bolt → ARP)      (where the ARP physically was)
+offset        = H_PC − H_ARP_expect
+```
+
+A positive offset means the phase centre sits **above** the reference point you measure to.
+
+Whichever convention you use, **record it per session** — it is a 1.12 m error if it is ever
+assumed rather than read.
+
 **Use ellipsoidal height. Never use the GGA MSL field.**
 
 GGA reports MSL altitude computed with the receiver's own internal geoid model, which is not
@@ -282,7 +309,8 @@ control point and the measured RTK point.
 | | |
 |---|---|
 | Published NHN height of mark | 139.555 m |
-| Recorded elevation (`Elv`) | 188.257 m |
+| Recorded elevation (`Elv`) | 188.257 m — **pole tip**, instrument height already subtracted |
+| → antenna reference point | 189.377 m ellipsoidal (`Elv + 1.120`) |
 | SW Maps instrument height | **1.120 m**, entered before recording |
 | Difference vs mark | **+48.702 m** |
 | ζ sanity band (47–50 m) | ✅ **pass** |
@@ -312,22 +340,23 @@ sinks most first attempts, and it is now ruled out.
 — one equation, two unknowns. It needs `ζ_true` from the BKG GCG2016 service at
 48.6798 N / 8.1279 E, and the tape measurement from the bolt to the ARP.
 
-**Open item — does `Elv` already have the instrument height taken off?** This is now the one
-thing blocking the reduction, and the geometry hints at the answer:
+**Resolved: `Elv` is already reduced.** See [the convention check](#convention-check--2026-08-23)
+below — SW Maps subtracts the instrument height, confirmed to 1 mm. So the recorded 188.257 m is
+the **pole tip**, and the antenna reference point stood at `188.257 + 1.120 = 189.377 m`
+ellipsoidal.
 
-| If `Elv` is… | pole tip (NHN) = | vs bolt at 139.555 m |
-|---|---|---|
-| **already reduced** (tip) | `188.257 − ζ` | tip lands *above* the bolt unless ζ ≳ 48.70 |
-| **not reduced** (antenna) | `188.257 − 1.120 − ζ` | tip 0.4–1.0 m *below* the bolt for ζ = 48.0–48.6 |
+**What that implies, and it is not comfortable.** With the reduction confirmed,
+`pole tip (NHN) = 188.257 − ζ_true`. The bolt is on the *face* of the pillar, above ground, so
+the tip must be **below** 139.555 m — which requires **ζ_true ≳ 48.70 m**, the top of the
+plausible band for Baden-Württemberg. Two possibilities remain, and the BKG lookup decides:
 
-The bolt sits on the *face* of the pillar, above ground, so the pole tip must be **below** it.
-The unreduced reading gives that naturally across the whole plausible ζ range; the reduced
-reading requires ζ to sit at the very top of the band. Suggestive, not conclusive.
+- ζ at this location genuinely is ≈ 48.7–48.9 m, and the tip sat a few centimetres below the
+  bolt — consistent, unremarkable;
+- ζ is nearer 48.3–48.5 m, in which case the pole tip was *above* the bolt and the setup was not
+  what it was assumed to be — wrong stone, sloping ground, or the tip was not on the ground.
 
-**Decisive test, two minutes, no travel:** set the pole up anywhere, record one point with
-instrument height `0.000` and a second with `1.120` **without moving the pole**. If the two
-`Elv` values differ by exactly 1.120 m, SW Maps applies the reduction; if they are identical, it
-merely stores the value as an attribute. Settle this once and record the convention here.
+Either way this reinforces the original conclusion: Session 1 cannot yield the offset, because
+nothing measured ties the pole tip to the bolt.
 
 **Also note `Average Count: 1`.** This was a single epoch, not the 15-minute occupation the
 procedure calls for. The quoted σ of 4 mm is the engine's instantaneous opinion of one epoch and
@@ -346,10 +375,41 @@ coordinate is not survey-grade, and the antenna was deliberately not set over th
 **Next session:** `7214900023` (B3 Feldkreuz) — open farmland, mark 0.10 m above ground on a
 foundation plate, unambiguous description. Measure bolt-to-ARP before leaving the point.
 
+### Convention check — 2026-08-23
+
+**Question:** does SW Maps subtract the instrument height from the elevation it stores, or does
+it merely record it as an attribute?
+
+**Method:** two points recorded 45 s apart at one setup, **without moving the pole** — the first
+with instrument height `1.120 m`, the second with the field cleared.
+
+| | Instrument height | `Elv` | σ H / V | UTM32 E / N |
+|---|---|---|---|---|
+| 16:47:13 | 1.120 m | 174.962 m | 0.003 / 0.004 m | 442714.718 / 5406422.999 |
+| 16:47:58 | *(field absent)* | 176.083 m | 0.004 / 0.006 m | 442714.718 / 5406422.994 |
+| | | **Δ 1.121 m** | | **Δ 5 mm N, 0 mm E** |
+
+Both RTK Fix, age of differential 1 s, PDOP 1.10, 11 of 25 satellites, baseline 3 236.23 m,
+reference station 2042.
+
+**Result: SW Maps subtracts the instrument height.** Δ`Elv` of 1.121 m against an entered
+1.120 m agrees to **1 mm**. When the field is left empty it is omitted from the point properties
+entirely, rather than stored as zero.
+
+**Do not read the 1 mm as precision.** Two epochs 45 seconds apart share the same satellites,
+the same atmosphere and the same multipath environment; they are almost perfectly correlated.
+The agreement demonstrates that the *arithmetic* is deterministic — it says nothing about
+accuracy, and must not be quoted as a repeatability figure.
+
+Evidence: [`session-02-ih-1120.jpeg`](session-02-ih-1120.jpeg),
+[`session-02-ih-0.jpeg`](session-02-ih-0.jpeg),
+[`convention-check.geojson`](convention-check.geojson).
+
 ### Session log
 
 | Date | Point | Sessions | h_measured | H_measured | H_ARP | Offset | Notes |
 |---|---|---|---|---|---|---|---|
+| 2026-08-23 | *(convention check)* | 2 epochs | — | — | — | — | SW Maps subtracts instrument height, confirmed to 1 mm |
 | 2026-08-22 | 7314900059 | 1 epoch | 188.257 m | — | — | — | RTK Fix, PDOP 0.80, 7.7 km baseline. Frame validated; mark not found |
 
 ---
