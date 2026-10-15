@@ -145,8 +145,8 @@ the boot log and are otherwise harmless — the rover works exactly as before.
 > See the manual's section 4.5 for the full INS bring-up procedure.
 
 Observed in the field on this build: RTK FIX with correction age around 1 s. The receiver's
-own precision estimates run to a few millimetres — but read
-[README → How accurate is it?](README.md#how-accurate-is-it) before believing them.
+own precision estimates run to a few millimetres — treat them as a rough guide rather than a
+certified value.
 
 > The COM ports are **3.3 V logic** and connect directly to an ESP32-C6 with no level shifter.
 > Do **not** feed 5 V into a COM pin. If you are unsure about your board revision, scope the
@@ -303,8 +303,7 @@ rejection you get for free with the board.
 
 > ⚠️ **It is not a characterised antenna.** There is no ANTEX calibration for it, so the
 > offset between the electrical phase centre and any physical point you measure to is unknown
-> — systematic, mostly in height, and invisible in the receiver's own σ estimates. See
-> [README → How accurate is it?](README.md#how-accurate-is-it) before trusting a height.
+> — systematic, mostly in height, and invisible in the receiver's own σ estimates.
 > Measuring to a consistent point and orienting the dome the same way every setup at least
 > makes that offset constant.
 
