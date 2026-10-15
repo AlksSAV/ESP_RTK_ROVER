@@ -28,22 +28,30 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 
 ---
 
-## 2. K803 Lite → K803 (полная версия)
+## 2. K803 Lite → K803 (полная версия, с IMU)
 
-Проверено по материалам ComNav: **обычный K803 — трёхчастотный, с бортовым IMU**.
-K803 Lite — без IMU. Командный набор и последовательность base→rover те же,
-отличаются описания возможностей и часть настроек динамики.
+Проверено по ComNav OEM Board Reference Manual V3.1:
+- **RTKOBSMODE** и **RTKDYNAMICS** — НЕ НАЙДЕНЫ в V3.1 (были в Lite)
+- Вместо `RTKDYNAMICS FOOT` → `SET APPSCENE Survey` (Survey/Robot/Car/Uav/Air/Space)
+- `INTERFACEMODE SAVECONFIG` → по V3.2.22 корректно: `SAVECONFIG`
+- Полная K803 имеет IMU: `INSCONTROL enable`, `SET SMOOTHEDDR on/off`, `SET DRCONFIG`
+- Плата только **XIAO ESP32C6** — убраны DevKitC/SPP builds из platformio.ini и доков
 
-- [ ] Пройти `ComNav_OEM_Board_Reference_Manual_V3.1.pdf` — сверить команды
-      из `src/gnss_init.cpp` с официальным набором, отметить неподтверждённые
-- [ ] `src/config.h` — комментарий блока `GNSS_INIT_K803`: убрать «Lite»
-- [ ] `src/gnss_init.cpp` — шапка файла и лог `[GNSS] ... rover init`
-- [ ] `README.md` — «SinoGNSS K803 Lite» → «SinoGNSS K803», добавить про IMU
-- [ ] `HARDWARE.md` — раздел «The K803 Lite»: характеристики, добавить IMU-строку
-- [ ] `COMMANDS.md` — заголовок и `RTKDYNAMICS`: с IMU доступен `AUTO`
-      с инерциальным удержанием; уточнить выбор режима под ровер
-- [ ] `FLASHING.md` — примеры лога `[GNSS] K803 Lite rover init`
-- [ ] `platformio.ini` — комментарии, где упоминается Lite
+- [x] `gnss_init.cpp`: `RTKOBSMODE 0` → `SET APPSCENE Survey` ✅
+- [x] `gnss_init.cpp`: `RTKDYNAMICS FOOT` → `SET APPSCENE Survey` ✅
+- [x] `gnss_init.cpp`: `INTERFACEMODE SAVECONFIG` → `SAVECONFIG` ✅
+- [x] `gnss_init.cpp`: добавлены `INSCONTROL ENABLE` и `SET SMOOTHEDDR ON` для IMU
+- [x] `config.h`: «Lite» убрано, пины обновлены под XIAO, SPP-секция удалена
+- [x] `platformio.ini`: убраны env `esp32dev_spp` и `esp32dev_ble`, только `xiao_esp32c6_ble`
+- [x] `README.md`: «K803 Lite» → «K803», добавлен IMU, убран DevKitC/SPP
+- [x] `HARDWARE.md`: убран «Lite», добавлена секция «K803 vs K803 Lite», убран DevKitC wiring
+- [x] `FLASHING.md`: убраны DevKitC инструкции, только XIAO + platformio
+- [x] `src/link_spp.cpp`: удалён (не нужен)
+- [x] `install/index.html`: убрана DevKitC секция, «K803 Lite» → «K803»
+- [x] `src/link.h`: обновлён комментарий, убран SPP
+
+- [ ] `COMMANDS.md`: обновить команды, убрать непроверенные, добавить IMU-команды
+- [ ] `web/rtk-monitor.html`: проверить, нет ли упоминаний Lite/SPP/DevKitC
 - ⚠️ **Не менять** физический разъём/пины до проверки конкретной платы —
       у полной K803 несущая плата и harness могут отличаться от Lite
 

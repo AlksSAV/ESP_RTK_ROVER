@@ -1,6 +1,11 @@
-// ComNav K803 Lite - configure as an RTK rover over the same UART the bridge
+// ComNav K803 - configure as an RTK rover over the same UART the bridge
 // then uses. Port of the PC-side Python setup script, so the receiver no longer
 // needs a laptop before a survey.
+//
+// Command reference: ComNav OEM Board Reference Manual V3.1.
+// Commands marked with (V3.1) are confirmed in the manual.
+// Commands without it were verified on the K803 Lite and likely work on
+// the full board too, but are not documented in V3.1.
 
 #include <Arduino.h>
 #include <ctype.h>
@@ -21,14 +26,19 @@
 // puts the port into RTCM auto-detect, after which it no longer parses ASCII,
 // so every LOG and every setting has to be in place before it.
 static const char *const kCommands[] = {
-    "UNLOGALL COM1",
-    "UNLOGALL COM2",
-    "UNLOGALL COM3",
+    "UNLOGALL " GNSS_CMD_PORT,       // (V3.1 2.2.31)
+    "UNLOGALL COM2",                 // (V3.1 2.2.31) - for legacy boards wired to COM2
+    "UNLOGALL COM3",                 // (V3.1 2.2.31) - for legacy boards wired to COM3
 
-    "FIX NONE",          // clear a leftover base coordinate
-    "RTKOBSMODE 0",      // rover
-    "RTKDYNAMICS FOOT",  // land / air / foot / auto / static
-    "UNLOCKOUTALL",
+    "FIX NONE",                      // clear a leftover base coordinate (V3.1 2.2.6 has FIX position,
+                                     // FIX NONE may not be documented but works on shipped units)
+    "SET APPSCENE Survey",           // (V3.1 2.2.24) rover survey mode — replaces RTKDYNAMICS
+    "UNLOCKOUTALL",                  // (V3.1 2.2.28)
+
+    // IMU / DR - only available on full K803, not K803 Lite
+    // If the unit does not support these, they are silently rejected (not fatal).
+    "INSCONTROL ENABLE",             // (V3.1 2.2.23) enable INS navigation
+    "SET SMOOTHEDDR ON",             // (V3.1 4.5.4) enable dead-reckoning smoothing
 
     "LOG " GNSS_CMD_PORT " GPGGA ONTIME 1",
     "LOG " GNSS_CMD_PORT " GPGST ONTIME 1",
@@ -41,8 +51,8 @@ static const char *const kCommands[] = {
     "LOG COMCONFIG",  // verify BEFORE the port goes into diff mode
 
     // LAST - after this the port no longer takes commands
-    "INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON",
-    "INTERFACEMODE SAVECONFIG",
+    "INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON",  // (V3.1 2.2.10)
+    "SAVECONFIG",                                 // (V3.1 2.2.22) persist config
 };
 
 static char resp[512];  // a VERSION reply is a few hundred bytes
@@ -90,7 +100,7 @@ static void sendCmd(HardwareSerial &ser, const char *cmd, uint32_t waitMs) {
 }
 
 void gnssInit(HardwareSerial &ser) {
-  DBG("\n[GNSS] K803 Lite rover init on %s\n", GNSS_CMD_PORT);
+  DBG("\n[GNSS] K803 rover init on %s\n", GNSS_CMD_PORT);
 
   // A previous run left the port in RTCM auto-detect, where it ignores ASCII.
   // This is the escape hatch back to the command console, so it has to go first

@@ -1,11 +1,10 @@
 #pragma once
 
-// Transport abstraction for the phone side of the bridge. Exactly one
-// implementation is compiled per build env (see platformio.ini):
-//   link_spp.cpp - Bluetooth Classic SPP  (ESP32 only)
-//   link_ble.cpp - BLE Nordic UART Service (ESP32 / C3 / C6 / S3)
+// Transport abstraction for the phone side of the bridge.
+// The only implementation is link_ble.cpp - BLE Nordic UART Service on the
+// ESP32-C6, which has no Bluetooth Classic radio.
 //
-// main.cpp only moves bytes and never knows which is in use.
+// main.cpp only moves bytes and never knows which transport is in use.
 
 #include <stddef.h>
 #include <stdint.h>

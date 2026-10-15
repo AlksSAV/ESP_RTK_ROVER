@@ -17,26 +17,26 @@
 ECOVACS GOAT lawnmowers ship with an RTK base station — the black dome you screw onto a pole.
 People sell them second-hand when they change mowers.
 
-Inside is a **SinoGNSS K803 Lite** by ComNav: a multi-frequency GNSS board with a real RTK
-engine, a patch antenna and a machined ground plane.
+Inside is a **SinoGNSS K803** by ComNav: a multi-frequency GNSS board with a real RTK engine,
+an IMU (dead-reckoning), a patch antenna and a machined ground plane.
 
 This project wires that board to a **Seeed Studio XIAO ESP32C6** and turns the dome into a
-Bluetooth RTK rover that any mobile GIS app can talk to.
+BLE RTK rover that any mobile GIS app can talk to.
 
 ```
   phone  (NTRIP client + GIS app)
     │   RTCM3 down  ·  NMEA up
-    │   Bluetooth LE / SPP
-  ESP32 / XIAO ESP32C6
+    │   Bluetooth LE
+  XIAO ESP32C6
     │   UART 115200
-  ComNav K803 Lite  ──  patch antenna + ground plane
+  ComNav K803  ──  patch antenna + ground plane
 ```
 
 The firmware:
 
 - **reconfigures the K803 from base station to rover on every boot** — no laptop before a survey
 - **passes bytes both ways, transparently** — NMEA up, RTCM3 corrections down
-- **speaks BLE** (XIAO, works on iOS and Android) or **Bluetooth Classic SPP** (ESP32 DevKitC)
+- **speaks BLE** (Nordic UART Service, works on iOS and Android)
 - **ships a browser dashboard** for live diagnostics
 
 ---
@@ -131,20 +131,20 @@ vertical. If you need certainty, buy a certified instrument.
 | USB power bank, wire, heat-shrink |
 
 <p align="center">
-  <img src="media/pinout-k803-harness.jpeg" alt="K803 Lite carrier board with 5V, GND, GNSS TX and GNSS RX called out" width="560">
+  <img src="media/pinout-k803-harness.jpeg" alt="K803 carrier board with 5V, GND, GNSS TX and GNSS RX called out" width="560">
 </p>
 
-| K803 harness | XIAO ESP32C6 | ESP32 DevKitC |
+| K803 harness | XIAO ESP32C6 | Note |
 |---|---|---|
-| **GNSS TX** (blue) | `D7` / GPIO17 | GPIO16 (`RX2`) |
-| **GNSS RX** (green) | `D6` / GPIO16 | GPIO17 (`TX2`) |
-| **GND** (yellow) | `GND` | `GND` |
-| **5 V** (orange) | `5V` | `VIN` |
+| **GNSS TX** (blue) | `D7` / GPIO17 | ESP32 RX ← receiver TX |
+| **GNSS RX** (green) | `D6` / GPIO16 | ESP32 TX → receiver RX |
+| **GND** (yellow) | `GND` | Mandatory common ground |
+| **5 V** (orange) | `5V` | VBUS passthrough from USB-C |
 
 TX and RX cross over. If you get no data, swap those two first.
 
-> ⚠️ **Power the receiver properly.** It pulls 150–300 mA. Feeding it from a DevKitC's onboard
-> regulator causes boot loops that look like corrupted firmware.
+> ⚠️ **Power the receiver properly.** It pulls 150–300 mA. Feeding it from a 3.3 V regulator
+> causes boot loops that look like corrupted firmware.
 > See [HARDWARE.md → Power](HARDWARE.md#power).
 
 Full teardown, pinouts and assembly: **[HARDWARE.md](HARDWARE.md)**
@@ -157,13 +157,9 @@ Full teardown, pinouts and assembly: **[HARDWARE.md](HARDWARE.md)**
 **[alkssav.github.io/ESP_RTK_ROVER/install](https://alkssav.github.io/ESP_RTK_ROVER/install/)**
 — Chrome or Edge on desktop.
 
-**ESP32 DevKitC — build from source.** No prebuilt image on purpose: WROOM and WROVER need
-different GNSS pins, and SPP and BLE are different firmwares.
-
 ```powershell
-pio run -e xiao_esp32c6_ble -t upload   # XIAO ESP32C6, BLE
-pio run -e esp32dev_spp     -t upload   # ESP32 DevKitC, Bluetooth Classic
-pio device monitor                      # console @ 115200
+pio run -t upload    # XIAO ESP32C6, BLE (default env)
+pio device monitor   # console @ 115200
 ```
 
 Details: **[FLASHING.md](FLASHING.md)**
@@ -181,14 +177,14 @@ Details: **[FLASHING.md](FLASHING.md)**
 In **SW Maps** (Android / iOS):
 
 1. **☰ → Bluetooth GNSS**
-2. **Connection Mode**: `Bluetooth LE` for the XIAO, `Bluetooth` for the DevKitC SPP build
+2. **Connection Mode**: `Bluetooth LE`
 3. Pick `ESP32-RTK-XXXX`
 4. **Instrument Model**: `Generic NMEA` — set **Instrument Height** to your pole length
 5. **Connect**
 6. **☰ → NTRIP Client** → your caster details → **Connect**
 7. Wait for `SINGLE` → `FLOAT` → **`RTK FIX`**
 
-Also works with **QField**, **Mergin Maps**, **Mapit GIS**, and Windows collectors over SPP.
+Also works with **QField**, **Mergin Maps**, **Mapit GIS**.
 
 Corrections come from your phone, not the ESP32 — the phone already has the internet connection.
 Any NTRIP caster serving RTCM 3.x works.
@@ -218,7 +214,7 @@ browser.
 | **[FLASHING.md](FLASHING.md)** | Web flashing, PlatformIO, esptool, troubleshooting |
 
 Firmware layout: `src/main.cpp` moves bytes, `src/gnss_init.cpp` configures the K803,
-`src/link_ble.cpp` and `src/link_spp.cpp` implement the two transports.
+`src/link_ble.cpp` implements the BLE transport.
 
 ---
 

@@ -70,7 +70,7 @@
 
   <h1>ESP_RTK_ROVER — flash from your browser</h1>
   <p class="sub">
-    ECOVACS GOAT base station + ComNav K803 Lite → centimetre-accurate Bluetooth GNSS rover.
+    ECOVACS GOAT base station + ComNav K803 → centimetre-accurate Bluetooth GNSS rover.
     <a href="https://github.com/AlksSAV/ESP_RTK_ROVER">Project on GitHub</a> ·
     <a href="../web/rtk-monitor.html">Live dashboard</a>
   </p>
@@ -108,26 +108,15 @@
 
   <div class="card">
     <span class="tag alt">Build from source</span>
-    <h2>ESP32 DevKitC — Bluetooth Classic SPP or BLE</h2>
+    <h2>PlatformIO</h2>
     <p style="margin:0;color:var(--ink-dim)">
-      No prebuilt image on purpose. "ESP32 DevKitC" covers a lot of different boards, and a
-      one-size image would brick or silently misbehave on some of them:
-    </p>
-    <ul>
-      <li><b>WROOM vs WROVER</b> — GPIO16/17 carry the GNSS UART on WROOM, but are consumed by
-        PSRAM on WROVER. Different pins, so a different build.</li>
-      <li><b>SPP vs BLE</b> — two different transports, two different firmwares.</li>
-      <li><b>Partition layout</b> — the SPP build needs <code>huge_app.csv</code>; a mismatch
-        against whatever is already on your flash boot-loops.</li>
-      <li><b>Flash size and USB bridge</b> vary between clones.</li>
-    </ul>
-    <p style="margin:14px 0 0;color:var(--ink-dim)">
-      Building takes two commands and picks the right settings for your board:
+      Take this route when you want to change a pin, the device name, the NMEA rate or the
+      K803 command sequence:
     </p>
 <pre>git clone https://github.com/AlksSAV/ESP_RTK_ROVER.git
 cd ESP_RTK_ROVER
-pio run -e esp32dev_spp -t upload    # Bluetooth Classic SPP
-pio run -e esp32dev_ble -t upload    # BLE</pre>
+pio run -t upload    # XIAO ESP32C6, BLE (default env)
+pio device monitor   # console @ 115200</pre>
     <p style="margin:12px 0 0">
       Full instructions: <a href="https://github.com/AlksSAV/ESP_RTK_ROVER/blob/main/FLASHING.md">FLASHING.md</a>
     </p>

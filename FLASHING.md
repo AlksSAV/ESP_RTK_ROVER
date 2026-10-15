@@ -1,49 +1,25 @@
-# FLASHING.md — Getting the Firmware onto the Board
+# FLASHING.md — Getting the Firmware onto the XIAO ESP32C6
 
 Three routes, easiest first:
 
 | Route | Needs | For |
 |---|---|---|
 | **[Web flashing](#1-web-flashing-1-click)** | Chrome or Edge, a USB cable | **XIAO ESP32C6 only.** No toolchain, no IDE, no drivers |
-| **[PlatformIO](#2-platformio-from-source)** | VS Code + PlatformIO | **Every ESP32 DevKitC build**, and anyone changing `config.h` or the K803 commands |
+| **[PlatformIO](#2-platformio-from-source)** | VS Code + PlatformIO | Anyone changing `config.h` or the K803 commands |
 | **[esptool](#3-esptool-manual)** | Python + esptool | CI, scripted installs, awkward setups |
 
-> **Why is there no prebuilt image for the ESP32 DevKitC?** Because "DevKitC" is not one
-> board. WROOM and WROVER need different GNSS pins (PSRAM occupies GPIO16/17 on WROVER), SPP
-> and BLE are different firmwares, and the SPP build needs a different partition table. A
-> single published image would boot-loop or silently misbehave on a good fraction of them.
-> Building from source picks the right one and takes two commands.
-
-- [Which build do I flash?](#which-build-do-i-flash)
-- [1. Web flashing (1-click)](#1-web-flashing-1-click)
-- [2. PlatformIO (from source)](#2-platformio-from-source)
-- [3. esptool (manual)](#3-esptool-manual)
+- [Web flashing (1-click)](#1-web-flashing-1-click)
+- [PlatformIO (from source)](#2-platformio-from-source)
+- [esptool (manual)](#3-esptool-manual)
 - [First boot — what a good log looks like](#first-boot--what-a-good-log-looks-like)
-- [Switching between builds](#switching-between-builds)
-- [Publishing your own installer page](#publishing-your-own-installer-page-maintainers)
+- [Publishing your own installer page (maintainers)](#publishing-your-own-installer-page-maintainers)
 - [Troubleshooting](#troubleshooting)
-
----
-
-## Which build do I flash?
-
-| Build | Board | Transport | Choose it if |
-|---|---|---|---|
-| `xiao_esp32c6_ble` | Seeed XIAO ESP32-C6 | BLE (Nordic UART) | **Recommended.** iOS + Android, modern GIS apps, fits inside the dome |
-| `esp32dev_spp` | ESP32 DevKitC | Bluetooth Classic SPP | Legacy collectors, Windows GIS software, "choose a paired Bluetooth device" apps |
-| `esp32dev_ble` | ESP32 DevKitC | BLE (Nordic UART) | Testing BLE on a DevKitC you already own |
-
-Rule of thumb: **iPhone → BLE.** iOS gives apps no access to Bluetooth Classic SPP without
-MFi certification, so a Classic build is invisible to it no matter what you do.
 
 ---
 
 ## 1. Web flashing (1-click)
 
 ### ▶ [https://alkssav.github.io/ESP_RTK_ROVER/install/](https://alkssav.github.io/ESP_RTK_ROVER/install/)
-
-**Seeed Studio XIAO ESP32C6 only.** One board, one known configuration, one image — which is
-exactly why it is safe to publish. DevKitC users: [build from source](#2-platformio-from-source).
 
 [ESP Web Tools](https://esphome.github.io/esp-web-tools/) drives the ESP32 ROM bootloader
 straight from the browser over Web Serial. No Arduino IDE, no PlatformIO, and the XIAO's
@@ -54,8 +30,7 @@ native USB needs no driver at all.
 | | |
 |---|---|
 | Browser | **Chrome or Edge, desktop, version 89+**. Any Chromium-based browser with Web Serial |
-| Not supported | Safari, Firefox (no Web Serial), and browsers on iOS |
-| Android | Chrome on Android works with an OTG cable on many devices, but is fiddly — prefer a desktop |
+| Not supported | Safari, Firefox (no Web Serial) |
 | Page | Must be served over **HTTPS** (or `localhost`) |
 | Cable | A **data** USB cable. Charge-only cables enumerate nothing and are a classic time sink |
 
@@ -75,15 +50,9 @@ Put it into download mode by hand:
 | Board | How |
 |---|---|
 | XIAO ESP32-C6 | Hold **BOOT (B)**, tap **RESET (R)**, release **BOOT** |
-| ESP32 DevKitC | Hold **BOOT**, tap **EN**, release **BOOT** |
 
-Then click **Connect** again. Some DevKitC clones need this every time; that is normal for
-boards without the auto-reset transistor pair.
-
-Windows may still need a USB-serial driver for older DevKitC clones —
-[CP210x](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers) or
-[CH340](https://www.wch-ic.com/downloads/CH341SER_ZIP.html). The XIAO ESP32-C6 uses native
-USB and needs nothing.
+Then click **Connect** again. Some clones need this every time; that is normal for boards
+without the auto-reset transistor pair.
 
 ---
 
@@ -109,16 +78,13 @@ ESP32 platform (Arduino core 3.x, required for the C6) and NimBLE. Expect a few 
 ### Build and upload
 
 ```powershell
-pio run -e xiao_esp32c6_ble -t upload    # XIAO ESP32-C6, BLE
-pio run -e esp32dev_spp     -t upload    # ESP32 DevKitC, Bluetooth Classic (repo default)
-pio run -e esp32dev_ble     -t upload    # ESP32 DevKitC, BLE
-
-pio run                                  # build default env only
-pio run -t clean                         # clean
-pio run -t erase                         # full chip erase
-pio device list                          # find the port
-pio device monitor                       # console @ 115200
-pio device monitor -p COM7               # ...on a specific port
+pio run -t upload    # XIAO ESP32C6, BLE (default env)
+pio run              # build only
+pio run -t clean     # clean
+pio run -t erase     # full chip erase
+pio device list      # find the port
+pio device monitor   # console @ 115200
+pio device monitor -p COM7   # ...on a specific port
 ```
 
 The monitor is configured with `esp32_exception_decoder` and timestamps, so a crash gives you
@@ -132,11 +98,10 @@ a decoded backtrace rather than raw addresses.
 | `LINK_DEVICE_NAME` | You run more than one rover |
 | `GNSS_INIT_K803` | Set `0` for an already-configured or non-ComNav receiver |
 | `BLE_TX_POWER_DBM` | More BLE range, at the cost of current |
-| `SPP_PIN` | An older Android insists on a pairing PIN |
 | `DEBUG_USB` | Set `0` to silence the console |
 
-Pins come from `platformio.ini` per environment and override the `config.h` defaults — change
-them there, not in the header.
+Pins come from `platformio.ini` and override the `config.h` defaults — change them there, not
+in the header.
 
 ---
 
@@ -150,7 +115,6 @@ pip install esptool
 
 | Chip | Bootloader | Partitions | boot_app0 | Application |
 |---|---|---|---|---|
-| ESP32 (DevKitC) | `0x1000` | `0x8000` | `0xe000` | `0x10000` |
 | ESP32-C6 (XIAO) | `0x0` | `0x8000` | `0xe000` | `0x10000` |
 
 The bootloader offset differs by chip generation. Getting it wrong gives you a board that
@@ -159,17 +123,10 @@ never leaves the ROM loader.
 ### Flash the artifacts a PlatformIO build produced
 
 ```powershell
-# XIAO ESP32-C6
 esptool --chip esp32c6 --port COM7 --baud 921600 write_flash -z `
   0x0     .pio/build/xiao_esp32c6_ble/bootloader.bin `
   0x8000  .pio/build/xiao_esp32c6_ble/partitions.bin `
   0x10000 .pio/build/xiao_esp32c6_ble/firmware.bin
-
-# ESP32 DevKitC
-esptool --chip esp32 --port COM7 --baud 921600 write_flash -z `
-  0x1000  .pio/build/esp32dev_spp/bootloader.bin `
-  0x8000  .pio/build/esp32dev_spp/partitions.bin `
-  0x10000 .pio/build/esp32dev_spp/firmware.bin
 ```
 
 `boot_app0.bin` ships with the Arduino framework package
@@ -193,7 +150,7 @@ Open the console at **115200**. On a XIAO you may need to reconnect after flashi
 USB re-enumerates.
 
 ```
-[GNSS] K803 Lite rover init on COM1
+[GNSS] K803 rover init on COM1
 [>] INTERFACEMODE COMPASS COMPASS ON
 [<] $command,INTERFACEMODE COMPASS COMPASS ON,response: OK*…
 [>] LOG VERSION
@@ -216,32 +173,16 @@ USB re-enumerates.
 | `[>]` / `[<]` | Command sent / receiver's reply |
 | `[<] (no response)` on **every** line | Wiring, power or baud — the receiver is not talking. [HARDWARE.md](HARDWARE.md#bench-test-before-you-close-it) |
 | `^^ REJECTED: …` | Link is fine, that specific command is unsupported. [COMMANDS.md](COMMANDS.md) |
-| `[SYS] … via BLE` / `via SPP` | Confirms which build is actually running |
+| `[SYS] … via BLE` | Confirms which build is actually running |
 | `[STAT] … up 512 B/s` | Receiver is streaming **and** a phone is linked |
 | `[STAT] … down 240 B/s` | RTCM corrections are reaching the receiver |
 
-The whole init takes about **13 seconds** before Bluetooth comes up. That is expected — it is
-17 commands at 600 ms each, plus a 2 s preamble.
+The whole init takes about **15 seconds** before Bluetooth comes up. That is expected — 21
+commands at 600 ms each, plus a 2 s preamble.
 
 > The init sequence runs before the link starts on purpose: the receiver echoes its replies,
 > and a phone that connected early would otherwise be fed the entire command transcript as if
 > it were NMEA.
-
----
-
-## Switching between builds
-
-`esp32dev_spp` uses the `huge_app.csv` partition layout (Bluedroid with Classic enabled does
-not fit the default 1.4 MB app partition). The BLE builds use the default layout. **The
-partition tables differ**, so switching between them without erasing leaves stale partition
-data behind and produces boot loops that look like corrupted firmware.
-
-```powershell
-pio run -t erase                              # or: esptool --chip esp32 erase_flash
-pio run -e xiao_esp32c6_ble -t upload
-```
-
-Erase first. Every time you change transport family.
 
 ---
 
@@ -266,8 +207,7 @@ copy .pio\build\xiao_esp32c6_ble\firmware.factory.bin install\firmware\xiao-c6-b
 
 `firmware.factory.bin` is bootloader + partition table + application pre-merged, flashable at
 offset `0`. Verify it before publishing: **byte 0 must be `0xE9`** on the C6, because its
-bootloader lives at `0x0`. (On a classic ESP32 the first `0xE9` sits at `0x1000` instead —
-if you ever add such a build, do not confuse the two.)
+bootloader lives at `0x0`.
 
 ```powershell
 '0x{0:X2}' -f [System.IO.File]::ReadAllBytes('install\firmware\xiao-c6-ble.bin')[0]
@@ -316,7 +256,7 @@ Firefox users see a button that simply does nothing.
 
 > **Publish one board, not five.** The image is keyed to a specific chip *and* a specific
 > pinout. The XIAO ESP32C6 is a single, known, unambiguous board, so a prebuilt image is
-> safe. "ESP32 DevKitC" is a category, not a board — publish source instructions for those.
+> safe.
 
 ### 5. Publish
 
@@ -334,14 +274,13 @@ Bump `version` in the manifest on every release so returning users are offered t
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| No port in the browser's dialog | Charge-only cable, missing driver, board not in download mode | Swap the cable first — it is usually the cable. Then drivers, then manual boot mode |
-| `Failed to connect: No serial data received` | Not in download mode | Hold BOOT, tap RESET/EN, release BOOT, retry |
+| No port in the browser's dialog | Charge-only cable, board not in download mode | Swap the cable first — it is usually the cable. Then manual boot mode |
+| `Failed to connect: No serial data received` | Not in download mode | Hold BOOT, tap RESET, release BOOT, retry |
 | `A fatal error occurred: MD5 of file does not match` | Bad cable or a flaky hub | Short cable, direct port, drop the baud to 115200 |
-| Flash succeeds, board boot-loops | Wrong bootloader offset, or leftover partitions from another build | Full erase, then reflash. C6 = `0x0`, ESP32 = `0x1000` |
+| Flash succeeds, board boot-loops | Wrong bootloader offset | Full erase, then reflash. C6 = `0x0` |
 | `invalid header: 0xffffffff`, `TG0WDT_SYS_RESET` **with the GNSS attached** | **Power sag, not firmware** | [HARDWARE.md → Power](HARDWARE.md#power) |
 | Console silent on a XIAO | Native USB re-enumerates after flashing | Reopen the monitor. The firmware waits up to 1.5 s for the host at boot |
 | Console prints garbage | Baud mismatch | 115200 |
-| Boots fine but the phone never sees it | Wrong build for the transport you expect | Check the `[SYS] … via SPP` / `via BLE` line |
 | `[<] (no response)` on every init line | GNSS not connected, wrong baud, TX/RX swapped | [HARDWARE.md](HARDWARE.md#harness-pinout) |
 | Board fine on USB, dies when the GNSS is plugged in | Shared power rail | Separate supply, share only GND |
 

@@ -1,38 +1,33 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// Wiring / UART
+// Wiring / UART  -  Seeed XIAO ESP32-C6
 // ---------------------------------------------------------------------------
-// Defaults below are for the ESP32 DevKitC on UART2 (Serial2 default pins).
-// Each build env in platformio.ini may override them via -D flags.
+// Defaults below match the XIAO pads; platformio.ini repeats them as -D flags,
+// so changing them here and there is redundant but harmless.
 //
-//   ESP32 DevKitC          GPIO16 = RX2  <- GNSS TX
-//                          GPIO17 = TX2  -> GNSS RX
+//   GNSS TX (blue)  ->  D7 / GPIO17  ->  ESP32-C6 RX
+//   GNSS RX (green) ->  D6 / GPIO16  ->  ESP32-C6 TX
 //
-// Do NOT use the pins silkscreened TX0/RX0 (GPIO1/GPIO3): they are wired to the
-// onboard USB-serial chip. Putting the GNSS there breaks flashing and the
-// serial monitor, and the GNSS will fight the USB bridge for the line.
-//
-// Note: GPIO16/17 are free on ESP32-WROOM-32 modules but are consumed by PSRAM
-// on ESP32-WROVER. On a WROVER, move the GNSS to e.g. GPIO25/GPIO26.
+// The C6 has no Bluetooth Classic radio, so the phone link is BLE only.
 
 #ifndef GNSS_UART_NUM
-#define GNSS_UART_NUM 2
+#define GNSS_UART_NUM 1
 #endif
 #ifndef PIN_GNSS_RX
-#define PIN_GNSS_RX 16  // ESP32 in  <- GNSS TX  (NMEA / UBX)
+#define PIN_GNSS_RX 17  // ESP32 in  <- GNSS TX  (NMEA)
 #endif
 #ifndef PIN_GNSS_TX
-#define PIN_GNSS_TX 17  // ESP32 out -> GNSS RX  (RTCM corrections)
+#define PIN_GNSS_TX 16  // ESP32 out -> GNSS RX  (RTCM corrections)
 #endif
 
 #define GNSS_BAUD 115200
 
-// Tie GNSS GND to the board GND. Power a multi-band RTK receiver from its own
-// supply, not the DevKitC 3V3 pin.
+// Tie GNSS GND to the board GND. The receiver draws 150-300 mA during
+// acquisition; feed it from VBUS, not from a 3V3 regulator.
 
 // ---------------------------------------------------------------------------
-// Receiver init - ComNav K803 Lite as an RTK rover
+// Receiver init - ComNav K803 as an RTK rover
 // ---------------------------------------------------------------------------
 // Runs once in setup(), before the bridge starts, and replaces the PC-side
 // Python setup script. Safe to repeat every boot: it first pulls the port back
@@ -51,22 +46,15 @@
 #define GNSS_CMD_WAIT_MS 600
 
 // ---------------------------------------------------------------------------
-// Phone link name (both SPP and BLE advertise this)
+// Phone link name (BLE advertisement)
 // ---------------------------------------------------------------------------
-// BLE builds append "-XXXX", the last two octets of the radio's own address, so
-// two rovers in the same field are tellable apart in a scan list and a phone's
-// bond for one is never reused for the other. SPP builds use the name as-is.
+// BLE appends "-XXXX", the last two octets of the radio's own address, so two
+// rovers in the same field are tellable apart in a scan list and a phone's bond
+// for one is never reused for the other.
 #define LINK_DEVICE_NAME "ESP32-RTK"
 
 // ---------------------------------------------------------------------------
-// Bluetooth Classic / SPP  (LINK_SPP builds; ESP32 only, not C3/C6/S3)
-// ---------------------------------------------------------------------------
-// Leave undefined for open pairing. Define to force a legacy PIN, which some
-// older Android versions still prompt for.
-// #define SPP_PIN "1234"
-
-// ---------------------------------------------------------------------------
-// BLE  (LINK_BLE builds)
+// BLE
 // ---------------------------------------------------------------------------
 #define BLE_TX_POWER_DBM 9  // -12..+20; higher = more range, more current
 #define BLE_ENABLE_BONDING 1
@@ -98,5 +86,5 @@
 
 #define USE_STATUS_LED 1
 #ifndef LED_ACTIVE_LOW
-#define LED_ACTIVE_LOW 0  // DevKitC GPIO2 LED is active HIGH
+#define LED_ACTIVE_LOW 1  // XIAO ESP32-C6 built-in LED is active-low
 #endif

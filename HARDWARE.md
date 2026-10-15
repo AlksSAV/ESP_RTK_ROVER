@@ -1,15 +1,20 @@
 # HARDWARE.md — Teardown, Pinout & Wiring
 
-Everything needed to get a **ComNav SinoGNSS K803 Lite** out of an **ECOVACS GOAT RTK base
-station** and onto an ESP32.
+Everything needed to get a **ComNav SinoGNSS K803** out of an **ECOVACS GOAT RTK base
+station** and onto a **Seeed XIAO ESP32-C6**.
+
+> The photos in this file show a **K803 Lite** taken out of a GOAT base — that is the unit
+> that was dissected and photographed. The wiring, the command set and the firmware are the
+> same for the full **K803**; the differences are listed in
+> [The K803](#the-k803). **Silkscreen, connector position and pin order are not guaranteed to
+> match between revisions** — verify with a multimeter before connecting anything.
 
 - [Before you start](#before-you-start)
 - [What is inside the dome](#what-is-inside-the-dome)
 - [Teardown](#teardown)
-- [The K803 Lite](#the-k803-lite)
+- [The K803](#the-k803)
 - [Harness pinout](#harness-pinout)
-- [Wiring — XIAO ESP32-C6](#wiring--xiao-esp32-c6-primary)
-- [Wiring — ESP32 DevKitC](#wiring--esp32-devkitc-classic-spp)
+- [Wiring — XIAO ESP32-C6](#wiring--xiao-esp32-c6)
 - [Power](#power)
 - [PPS (optional)](#pps-optional)
 - [Antenna](#antenna)
@@ -42,8 +47,8 @@ talk to the receiver from a PC first.
 
 | Part | What it does | Do we use it? |
 |---|---|---|
-| **SinoGNSS K803 Lite** OEM module | The GNSS + RTK engine. This is the prize. | ✅ Everything |
-| **QinNav QD-02** module | The base station's own data link to the mower. **We drop it** — the phone link is Bluetooth BLE/SPP instead. | ❌ Not used |
+| **SinoGNSS K803** OEM module | The GNSS + RTK engine (the full board also carries an IMU). This is the prize. | ✅ Everything |
+| **QinNav QD-02** module | The base station's own data link to the mower. **We drop it** — the phone link is Bluetooth LE instead. | ❌ Not used |
 | Carrier board | Power regulation, port breakout, status LED, button | ✅ As power + port breakout |
 | Patch antenna + machined ground plane | Multi-band antenna with a proper ground plane under it | ✅ Kept exactly as-is |
 | Weatherproof dome, gasket, pole mount | Housing, already IP-rated and pole-mountable | ✅ Reused as the rover housing |
@@ -52,7 +57,7 @@ The ground plane and antenna are a real part of why this performs like a survey 
 instead of like a phone GPS. Keep them together; do not "improve" the stack-up.
 
 <p align="center">
-  <img src="media/teardown-board-harness.jpeg" alt="Base station opened: K803 Lite carrier board on its ground plane, 4-wire harness routed to the lid" width="500"><br>
+  <img src="media/teardown-board-harness.jpeg" alt="Base station opened: carrier board on its ground plane, 4-wire harness routed to the lid" width="500"><br>
   <sub>Opened unit. The 4-wire harness (yellow/blue/green/orange) leaves the carrier board's
   white JST header and runs to the ESP32 mounted in the lid.</sub>
 </p>
@@ -68,10 +73,10 @@ instead of like a phone GPS. Keep them together; do not "improve" the stack-up.
    unit) runs from the carrier board to the lid. Do not yank it. Unplug it at the board if
    you need the halves fully apart.
 4. **Note the gasket seat** before you disturb it. You need it later for weatherproofing.
-5. **Identify the boards.** The larger shielded can labelled `K803Lite GNSS Module` /
+5. **Identify the boards.** The larger shielded can labelled `K803 GNSS Module` /
    `SinoGNSS by ComNav Technology Ltd.` is the receiver. The second, smaller shielded module
-   (`QinNav QD-02`) is the base station's data link — we drop it entirely and use Bluetooth
-   BLE/SPP instead, so leave it alone and unpowered.
+   (`QinNav QD-02`) is the base station's data link — we drop it entirely and use Bluetooth LE
+   instead, so leave it alone and unpowered.
 6. **Find the white JST header** on the carrier board next to the K803. This is COM1 plus
    power, and it is where the whole project connects. See [Harness pinout](#harness-pinout).
 7. **Leave the receiver board bolted to the ground plane.** There is no reason to remove it,
@@ -88,9 +93,9 @@ instead of like a phone GPS. Keep them together; do not "improve" the stack-up.
 
 ---
 
-## The K803 Lite
+## The K803
 
-Markings on the photographed unit:
+Markings on the photographed unit (a K803 Lite):
 
 ```
 SinoGNSS  by ComNav Technology Ltd.
@@ -99,9 +104,9 @@ PN: 2180300014
 SN: 01A009673059
 ```
 
-Indicative capability, from ComNav's published K803 material. **Your unit's actual enabled
-feature set depends on its authorization** — confirm with `LOG VERSION`
-(see [COMMANDS.md](COMMANDS.md#log-version)):
+Indicative capability, from ComNav's published material and the OEM Board Reference Manual
+V3.1. **Your unit's actual enabled feature set depends on its authorization** — confirm with
+`LOG VERSION` (see [COMMANDS.md](COMMANDS.md#log-version)):
 
 | | |
 |---|---|
@@ -113,13 +118,39 @@ feature set depends on its authorization** — confirm with `LOG VERSION`
 | Time pulse | 1 PPS output |
 | Typical draw | 150–300 mA during acquisition — see [Power](#power) |
 
+### K803 vs K803 Lite
+
+The full K803 adds an **onboard IMU**, which gives it two things the Lite cannot do:
+
+| | K803 Lite | K803 |
+|---|---|---|
+| RTK engine, constellations, RTCM 3.x input | ✅ | ✅ |
+| Command set and base→rover sequence | ✅ | ✅ |
+| Onboard IMU | ❌ | ✅ |
+| Dead reckoning through short blockage (`INSCONTROL`, `SET SMOOTHEDDR`) | ❌ | ✅ |
+| Tilt compensation (`insrtk` command group) | ❌ | ✅ |
+
+The firmware sends the IMU commands unconditionally. On a Lite they come back `REJECTED` in
+the boot log and are otherwise harmless — the rover works exactly as before.
+
+> **Enabling INS is not free.** Dead reckoning needs a **lever arm** (`SET DRLEVERARM x y z`,
+> millimetres from the antenna phase centre to the navigation centre) and a vehicle axis
+> convention (`SET IMUAXESTYPE`) before it produces meaningful output. Under those conditions
+> it is designed for a **moving platform** that has to keep reporting position through a
+> tunnel or under tree cover. On a **pole rover that stops to take a point**, it adds
+> convergence time and a new way to be quietly wrong without adding accuracy — a stopped
+> rover already has a clean sky. It is left enabled here because the commands are cheap and
+> the board has the hardware; comment the two lines out of `kCommands[]` in
+> [`src/gnss_init.cpp`](src/gnss_init.cpp) if you would rather not carry it.
+> See the manual's section 4.5 for the full INS bring-up procedure.
+
 Observed in the field on this build: RTK FIX with correction age around 1 s. The receiver's
 own precision estimates run to a few millimetres — but read
 [README → How accurate is it?](README.md#how-accurate-is-it) before believing them.
 
-> The COM ports are **3.3 V logic** and connect directly to an ESP32 or ESP32-C6 with no
-> level shifter. Do **not** feed 5 V into a COM pin. If you are unsure about your board
-> revision, scope the receiver's TX line before wiring it up — idle should sit at 3.3 V.
+> The COM ports are **3.3 V logic** and connect directly to an ESP32-C6 with no level shifter.
+> Do **not** feed 5 V into a COM pin. If you are unsure about your board revision, scope the
+> receiver's TX line before wiring it up — idle should sit at 3.3 V.
 
 ---
 
@@ -133,10 +164,10 @@ Four wires on the white JST header next to the K803: **5 V, GND, GNSS TX, GNSS R
 
 | Signal | Wire colour in the photo | Direction (receiver's point of view) | Goes to |
 |---|---|---|---|
-| **5 V** | orange | Power **in** | ESP32 `5V` / `VIN`, or a separate 5 V supply |
-| **GND** | yellow | — | ESP32 `GND` (**always connect, always first**) |
-| **GNSS TX** | blue | **Out** — NMEA to you | ESP32 **RX** pin |
-| **GNSS RX** | green | **In** — RTCM3 from you | ESP32 **TX** pin |
+| **5 V** | orange | Power **in** | XIAO `5V`, or a separate 5 V supply |
+| **GND** | yellow | — | XIAO `GND` (**always connect, always first**) |
+| **GNSS TX** | blue | **Out** — NMEA to you | XIAO **RX** pin (`D7`) |
+| **GNSS RX** | green | **In** — RTCM3 from you | XIAO **TX** pin (`D6`) |
 
 Wire colours are this build's convention, not a standard. Verify the pins on **your** board
 before powering anything:
@@ -154,9 +185,9 @@ before powering anything:
 
 ---
 
-## Wiring — XIAO ESP32-C6 (primary)
+## Wiring — XIAO ESP32-C6
 
-Build env `xiao_esp32c6_ble`. `UART1`, `PIN_GNSS_RX=17`, `PIN_GNSS_TX=16`.
+Build env `xiao_esp32c6_ble` (the only one). `UART1`, `PIN_GNSS_RX=17`, `PIN_GNSS_TX=16`.
 
 | K803 harness | XIAO pad | GPIO | Note |
 |---|---|---|---|
@@ -168,7 +199,7 @@ Build env `xiao_esp32c6_ble`. `UART1`, `PIN_GNSS_RX=17`, `PIN_GNSS_TX=16`.
 ```
  ECOVACS GOAT base station                     Seeed XIAO ESP32-C6
  ┌───────────────────────────────┐             ┌───────────────────┐
- │  K803 Lite  COM1              │             │                   │
+ │  K803       COM1              │             │                   │
  │   TX  ●───────── blue ────────┼─────────────┤ D7 (GPIO17)  RX   │
  │   RX  ●───────── green ───────┼─────────────┤ D6 (GPIO16)  TX   │
  │  GND  ●───────── yellow ──────┼─────────────┤ GND               │
@@ -184,8 +215,8 @@ cable, one battery.
 
 Notes specific to the C6:
 
-- The C6 has **no Bluetooth Classic radio**. BLE builds only — this is by design, and it is
-  also what iOS requires.
+- The C6 has **no Bluetooth Classic radio**, so the transport is BLE only. That is also what
+  iOS requires.
 - `ARDUINO_USB_CDC_ON_BOOT=1`: the console is the native USB port. It only enumerates once
   the host is attached, so the firmware waits up to 1.5 s at boot before logging.
 - The onboard user LED is **active-low**; the build sets `LED_ACTIVE_LOW=1`.
@@ -195,42 +226,19 @@ Notes specific to the C6:
 
 ---
 
-## Wiring — ESP32 DevKitC (Classic SPP)
-
-Build env `esp32dev_spp`. `UART2`, `PIN_GNSS_RX=16`, `PIN_GNSS_TX=17`.
-
-| K803 harness | DevKitC pin | Silkscreen |
-|---|---|---|
-| GNSS **TX** (blue) | **GPIO16** | `RX2` |
-| GNSS **RX** (green) | **GPIO17** | `TX2` |
-| **GND** (yellow) | `GND` | — |
-| **5 V** (orange) | `VIN` / `5V` | Read [Power](#power) |
-
-> ⚠️ **Do not use GPIO1/GPIO3 (`TX0`/`RX0`).** They belong to the onboard USB-serial chip.
-> The receiver would fight the USB bridge, and flashing and the serial monitor would stop
-> working. UART2 on GPIO16/17 is the correct spare port.
-
-> ⚠️ **ESP32-WROVER modules:** GPIO16/17 are consumed by PSRAM. Move the receiver to e.g.
-> GPIO25/GPIO26 and rebuild with `-DPIN_GNSS_RX=25 -DPIN_GNSS_TX=26`. Plain WROOM-32
-> DevKitC boards are fine as shipped.
-
----
-
 ## Power
 
 **This is the single most common failure in the whole project.** Read it before wiring.
 
 ### The numbers
 
-- K803 Lite: **150–300 mA** during acquisition, more at cold start.
-- ESP32 with Bluetooth Classic TX peaks: several hundred mA in short bursts.
-- A DevKitC's onboard AMS1117 regulator plus a thin USB cable cannot serve both.
+- K803: **150–300 mA** during acquisition, more at cold start.
+- ESP32-C6 with BLE TX peaks: tens of mA in short bursts — much gentler than a Classic radio.
+- A thin USB cable and a tired power bank still cannot serve both reliably.
 
 ### The failure mode
 
-Powering the receiver from the DevKitC's `3V3` or `VIN` pin puts it on the same USB rail as
-the ESP32. The receiver's inrush plus a Bluetooth TX peak sags 5 V below the regulator's
-dropout, the 3.3 V rail follows, and the **flash chip stops responding** to the ROM
+When 5 V sags, the 3.3 V rail follows, and the **flash chip stops responding** to the ROM
 bootloader:
 
 ```
@@ -245,19 +253,18 @@ for hours. It is not a firmware bug.
 
 ### Fix, in order
 
-1. **Power the receiver from its own supply**, sharing **only GND** with the ESP32.
+1. **Power the receiver from its own supply**, sharing **only GND** with the XIAO.
 2. Add **470–1000 µF electrolytic + 100 nF ceramic** across 5 V / GND at the board.
-3. Use a wall adapter or powered hub, and a **short, thick** USB cable. Charge-only cables
-   and 1 m of 28 AWG are both fatal here.
+3. Use a wall adapter or a power bank that can actually source the current, and a **short,
+   thick** USB cable. Charge-only cables and 1 m of 28 AWG are both fatal here.
 
 ### Topologies that work
 
 | Setup | Verdict |
 |---|---|
 | Power bank → XIAO USB-C → XIAO `5V` pin → receiver | ✅ The photographed build. Power bank sources amps happily; the XIAO's 5 V pin is straight VBUS, not a regulator output. |
-| Separate 5 V supply → receiver; USB → ESP32; **GND tied together** | ✅ Most robust. Do this on the bench. |
-| USB → DevKitC → `VIN` → receiver, thin cable | ⚠️ Marginal. Add bulk capacitance or expect boot loops. |
-| DevKitC `3V3` pin → receiver | ❌ Through the onboard regulator. Do not. |
+| Separate 5 V supply → receiver; USB → XIAO; **GND tied together** | ✅ Most robust. Do this on the bench. |
+| XIAO `3V3` pin → receiver | ❌ Through the onboard regulator, and the receiver wants 5 V anyway. Do not. |
 | Power supplies not sharing a ground | ❌ No common reference; UART will not work, and you can damage pins. |
 
 ### Bisecting a boot loop
@@ -276,7 +283,7 @@ The K803 exposes a **1 PPS** time-pulse output. **The firmware does not use it**
 Wire it only if you are building something that needs hardware-timed sampling (camera
 triggering, sensor fusion, an NTP server):
 
-| Signal | Level | Suggested ESP32 pin | Notes |
+| Signal | Level | Suggested XIAO pin | Notes |
 |---|---|---|---|
 | PPS | 3.3 V logic, ~1 Hz pulse | any free GPIO with interrupt capability | Keep the lead short; it is a timing reference |
 
@@ -335,7 +342,7 @@ Practical siting matters more than any modification:
    replies from the K803 rather than `(no response)`:
 
    ```
-   [GNSS] K803 Lite rover init on COM1
+   [GNSS] K803 rover init on COM1
    [>] INTERFACEMODE COMPASS COMPASS ON
    [<] $command,INTERFACEMODE COMPASS COMPASS ON,response: OK*…
    [>] LOG VERSION
@@ -343,7 +350,9 @@ Practical siting matters more than any modification:
    ```
 
 4. Add the **ESP TX → receiver RX** wire and reboot. Commands should now be accepted; watch
-   for `REJECTED` lines (see [COMMANDS.md](COMMANDS.md)).
+   for `REJECTED` lines (see [COMMANDS.md](COMMANDS.md)). On a board without an IMU, expect
+   exactly the two `INSCONTROL` / `SET SMOOTHEDDR` lines to be rejected — everything else
+   should answer `OK`.
 5. Take it outside. Within a minute the `[STAT]` line should show real uplink traffic:
 
    ```
@@ -369,7 +378,6 @@ become real:
 | `pinout-jst-closeup.jpg` | JST header macro, pin 1 marked |
 | `pinout-silkscreen.jpg` | Silkscreen labels beside the header |
 | `wiring-xiao.jpg` | XIAO wired up, wire colours visible |
-| `wiring-devkitc.jpg` | DevKitC equivalent |
 | `pps-pad.jpg` | PPS test point |
 | `assembly-esp-in-lid.jpg` | ESP32 mounted and strain-relieved |
 | `assembly-closed.jpg` | Finished unit on a pole |
