@@ -292,7 +292,7 @@ the receiver has a position fix; PPS is typically not asserted before then.
 
 Leave the antenna stack alone. The dome contains a multi-band patch over a machined metal
 ground plane, at the spacing its designer chose — this is a big part of the multipath
-rejection you are getting for 50 €.
+rejection you get for free with the board.
 
 > ⚠️ **It is not a characterised antenna.** There is no ANTEX calibration for it, so the
 > offset between the electrical phase centre and any physical point you measure to is unknown

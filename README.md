@@ -3,8 +3,8 @@
 **A DIY centimetre-accurate GNSS rover.**
 
 <p align="center">
-  <b><a href="https://hmd83.github.io/ESP_RTK_ROVER/install/">⚡ Flash in your browser</a></b> ·
-  <b><a href="https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html">🛰️ Live Dashboard</a></b> ·
+  <b><a href="install/">⚡ Flash in your browser</a></b> ·
+  <b><a href="web/rtk-monitor.html">🛰️ Live Dashboard</a></b> ·
   <a href="HARDWARE.md">🔧 Hardware</a> ·
   <a href="COMMANDS.md">📡 K803 Commands</a> ·
   <a href="FLASHING.md">📖 Flashing</a>
@@ -15,7 +15,7 @@
 ## What it is
 
 ECOVACS GOAT lawnmowers ship with an RTK base station — the black dome you screw onto a pole.
-People sell them second-hand for **40–90 €** when they change mowers.
+People sell them second-hand when they change mowers.
 
 Inside is a **SinoGNSS K803 Lite** by ComNav: a multi-frequency GNSS board with a real RTK
 engine, a patch antenna and a machined ground plane.
@@ -38,8 +38,6 @@ The firmware:
 - **passes bytes both ways, transparently** — NMEA up, RTCM3 corrections down
 - **speaks BLE** (XIAO, works on iOS and Android) or **Bluetooth Classic SPP** (ESP32 DevKitC)
 - **ships a browser dashboard** for live diagnostics
-
-Total build cost: **under 100 €**.
 
 ---
 
@@ -79,7 +77,7 @@ Two field tests against official government height benchmarks, using free NTRIP 
 Then we stopped — this is a hobby device, and characterising it properly needs reference
 equipment we do not have.
 
-### Test 1 — Bühl, 22 Aug 2026
+### Test 1 — field test, 22 Aug 2026
 
 <p align="center">
   <img src="media/test-1-swmaps.jpg" alt="SW Maps point properties: RTK Fix, 16 satellites, PDOP 0.80" width="290">
@@ -106,8 +104,8 @@ official height.
 
 > **Measured ellipsoidal height − official height = 48.71 m**
 
-That difference should be the *geoid separation*, which in this part of Germany is **47–50 m**.
-It is. And it lands within about a centimetre of what test 1 implied, from a site 14 km away.
+That difference should be the *geoid separation*. It lands within about a centimetre of what
+test 1 implied, from a site 14 km away.
 
 ### What that proves — and what it doesn't
 
@@ -126,11 +124,11 @@ vertical. If you need certainty, buy a certified instrument.
 
 ## Hardware
 
-| Item | Cost |
-|---|---|
-| ECOVACS GOAT RTK base station (second-hand) | 40–90 € |
-| [Seeed Studio XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html) | ~8 € |
-| USB power bank, wire, heat-shrink | on hand |
+| Item |
+|---|
+| ECOVACS GOAT RTK base station (second-hand) |
+| [Seeed Studio XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html) |
+| USB power bank, wire, heat-shrink |
 
 <p align="center">
   <img src="media/pinout-k803-harness.jpeg" alt="K803 Lite carrier board with 5V, GND, GNSS TX and GNSS RX called out" width="560">
@@ -156,7 +154,7 @@ Full teardown, pinouts and assembly: **[HARDWARE.md](HARDWARE.md)**
 ## Flash it
 
 **XIAO ESP32C6 — one click, no toolchain:**
-**[hmd83.github.io/ESP_RTK_ROVER/install](https://hmd83.github.io/ESP_RTK_ROVER/install/)**
+**[alkssav.github.io/ESP_RTK_ROVER/install](https://alkssav.github.io/ESP_RTK_ROVER/install/)**
 — Chrome or Edge on desktop.
 
 **ESP32 DevKitC — build from source.** No prebuilt image on purpose: WROOM and WROVER need
@@ -193,7 +191,7 @@ In **SW Maps** (Android / iOS):
 Also works with **QField**, **Mergin Maps**, **Mapit GIS**, and Windows collectors over SPP.
 
 Corrections come from your phone, not the ESP32 — the phone already has the internet connection.
-Free NTRIP networks such as **Centipede-RTK** or **RTK2go** work, as do national services.
+Any NTRIP caster serving RTCM 3.x works.
 
 > Note: SW Maps **subtracts** the instrument height from the elevation it stores. Enter your pole
 > length and it records the ground point; leave it empty and it records the antenna.
@@ -202,7 +200,7 @@ Free NTRIP networks such as **Centipede-RTK** or **RTK2go** work, as do national
 
 ## Live dashboard
 
-**[Open the dashboard →](https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html)**
+**[Open the dashboard →](https://alkssav.github.io/ESP_RTK_ROVER/web/rtk-monitor.html)**
 
 One self-contained HTML file. Connects to the rover over Web Bluetooth in Chrome or Edge and
 decodes the stream live: fix quality, position, σ values, DOPs, correction age, and a raw NMEA

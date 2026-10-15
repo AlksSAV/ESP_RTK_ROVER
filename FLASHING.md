@@ -40,7 +40,7 @@ MFi certification, so a Classic build is invisible to it no matter what you do.
 
 ## 1. Web flashing (1-click)
 
-### ▶ [https://hmd83.github.io/ESP_RTK_ROVER/install/](https://hmd83.github.io/ESP_RTK_ROVER/install/)
+### ▶ [https://alkssav.github.io/ESP_RTK_ROVER/install/](https://alkssav.github.io/ESP_RTK_ROVER/install/)
 
 **Seeed Studio XIAO ESP32C6 only.** One board, one known configuration, one image — which is
 exactly why it is safe to publish. DevKitC users: [build from source](#2-platformio-from-source).
@@ -61,7 +61,7 @@ native USB needs no driver at all.
 
 ### Steps
 
-1. Open **[the installer](https://hmd83.github.io/ESP_RTK_ROVER/install/)**.
+1. Open **[the installer](https://alkssav.github.io/ESP_RTK_ROVER/install/)**.
 2. Plug the XIAO into USB-C. **Disconnect the GNSS harness first** — flash it standalone.
 3. Click **Connect**.
 4. Choose the serial port in the browser's dialog — `USB JTAG/serial debug unit` or similar.
@@ -98,7 +98,7 @@ K803 command sequence.
 2. Clone and open the project:
 
    ```powershell
-   git clone https://github.com/hmd83/ESP_RTK_ROVER.git
+   git clone https://github.com/AlksSAV/ESP_RTK_ROVER.git
    cd ESP_RTK_ROVER
    code .
    ```
@@ -322,8 +322,8 @@ Firefox users see a button that simply does nothing.
 
 GitHub Pages is already serving this repo from **`main` / root**, so committing the
 `install/` folder is all it takes — the installer lands at
-`https://hmd83.github.io/ESP_RTK_ROVER/install/`, alongside the
-[dashboard](https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html).
+`https://alkssav.github.io/ESP_RTK_ROVER/install/`, alongside the
+[dashboard](https://alkssav.github.io/ESP_RTK_ROVER/web/rtk-monitor.html).
 
 Serve the manifest and the `.bin` from the **same origin** as the page, or configure CORS.
 Bump `version` in the manifest on every release so returning users are offered the update.
