@@ -3,10 +3,6 @@
 **A DIY centimetre-accurate GNSS rover.**
 
 <p align="center">
-  <img src="media/rover-field.jpeg" alt="The converted dome on a survey pole, powered from a USB power bank" width="360">
-</p>
-
-<p align="center">
   <b><a href="https://hmd83.github.io/ESP_RTK_ROVER/install/">⚡ Flash in your browser</a></b> ·
   <b><a href="https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html">🛰️ Live Dashboard</a></b> ·
   <a href="HARDWARE.md">🔧 Hardware</a> ·
