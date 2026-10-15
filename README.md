@@ -1,12 +1,6 @@
 # ESP_RTK_ROVER
 
-**A 50 € robot-mower part turned into a DIY centimetre-accurate GNSS rover.**
-
-[![Platform](https://img.shields.io/badge/platform-XIAO%20ESP32C6%20%7C%20ESP32-blue)](https://www.espressif.com/)
-[![Framework](https://img.shields.io/badge/framework-Arduino%20%2F%20PlatformIO-orange)](https://platformio.org/)
-[![GNSS](https://img.shields.io/badge/GNSS-ComNav%20K803%20Lite-success)](https://www.comnavtech.com/)
-[![DIY](https://img.shields.io/badge/DIY-not%20a%20certified%20instrument-red)](#-this-is-a-diy-device-not-a-survey-instrument)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+**A DIY centimetre-accurate GNSS rover.**
 
 <p align="center">
   <img src="media/rover-field.jpeg" alt="The converted dome on a survey pole, powered from a USB power bank" width="360">
