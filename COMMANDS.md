@@ -1,7 +1,8 @@
 # COMMANDS.md — ComNav K803 Command Reference
 
-How the **SinoGNSS K803 Lite** is taken out of ECOVACS base-station mode and turned into an
-RTK rover, and how to change that configuration yourself.
+Command reference for the **SinoGNSS K803** RTK receiver, covering the boot sequence
+used by this firmware, the full set of ASCII commands from OEM Board Reference Manual
+**V3.1**, and live-verified commands from **FW 7.4.6** (2025-12-30).
 
 - [How the receiver talks](#how-the-receiver-talks)
 - [The point of no return](#the-point-of-no-return)
@@ -14,6 +15,10 @@ RTK rover, and how to change that configuration yourself.
   - [Diagnostics](#diagnostics)
   - [Interface mode and differential input](#interface-mode-and-differential-input)
   - [Persistence and reset](#persistence-and-reset)
+  - [IMU / Dead-reckoning (full K803 only)](#imu--dead-reckoning-full-k803-only)
+  - [RTCM relay](#rtcm-relay)
+  - [System lockout](#system-lockout)
+  - [PPS output](#pps-output)
 - [Output rate recipes](#output-rate-recipes)
 - [RTCM input](#rtcm-input)
 - [Changing the sequence in firmware](#changing-the-sequence-in-firmware)
@@ -27,8 +32,15 @@ RTK rover, and how to change that configuration yourself.
 
 | Mark | Meaning |
 |---|---|
-| ✅ | **In the shipped boot sequence and verified on the photographed K803 Lite.** |
-| 🔷 | From the ComNav / NovAtel-style command set. Widely supported, but **not** exercised by this firmware — confirm on your unit before relying on it. |
+| ✅ | **Emitted by the shipped boot sequence.** The mark says nothing about whether the receiver accepted it — watch for `REJECTED` in the boot log. |
+| 🔷 | From the ComNav OEM Board Reference Manual V3.1 — not sent by this firmware, confirm on your unit before relying on it. |
+| 🟡 | Verified live on FW 7.4.6 (2025-12-30) on a separate test rig (comnav.md). That unit was configured as a **base**, not a rover. |
+
+> ⚠️ **Nothing here has been verified on this fork's own board.** The boot sequence is
+> inherited from upstream, where it was confirmed on a single K803 **Lite** taken out of an
+> ECOVACS base station. The full K803 in this project has not been talked to yet, and its
+> IMU commands (`INSCONTROL`, `SET SMOOTHEDDR`) have never been exercised at all. Treat every
+> ✅ as "will be sent", not as "works".
 
 Command availability varies with firmware build and **authorization**. A command your unit
 does not support is rejected, not silently ignored — check the reply.
@@ -41,18 +53,23 @@ does not support is rejected, not silently ignored — check the reply.
 - **Syntax:** abbreviated ASCII, one command per line, case-insensitive in practice.
 - **Terminator:** `\r\n` (CRLF). The firmware appends it; a terminal set to LF-only will hang
   with no reply.
+- **No prefix:** commands are sent as plain ASCII without `$` or `*CRC` suffix.
 - **Replies** depend on firmware build. Both of these are normal:
 
   ```
-  <OK
-  $command,LOG COM1 GPGGA ONTIME 1,response: OK*4A
+  OK! Command accepted! Port: COM1.
   ```
 
-- **Rejections** contain `Invalid` or `ERROR`:
+- **Rejections** contain `Invalid`:
 
   ```
-  $command,RTKOBSMODE 0,response: Invalid Message ID*2F
+  Error! Invalid key word!
   ```
+
+  > ⚠️ In FW 7.4.6, the reply format differs from older docs: accepted commands return
+  > `OK! Command accepted! Port: COMn.` rather than `$command,response: OK*<crc>`.
+  > Rejected commands return `Error! Invalid key word!`. The firmware checks for
+  > `Invalid` in the reply string.
 
 - **Logs** are asynchronous. Replies arrive interleaved with whatever the receiver is already
   streaming, so never stop reading at the first newline. The firmware collects for a whole
@@ -63,13 +80,13 @@ The firmware logs the whole exchange to the USB console:
 
 ```
 [>] LOG COM1 GPGGA ONTIME 1
-[<] $command,LOG COM1 GPGGA ONTIME 1,response: OK*4A
+[<] OK! Command accepted! Port: COM1.
 ```
 
 and flags failures:
 
 ```
-    ^^ REJECTED: RTKOBSMODE 0
+    ^^ REJECTED: SET APPSCENE Survey
 ```
 
 > `GNSS_CMD_PORT` in `src/config.h` is **the receiver's own port name** (`COM1`), i.e. the
@@ -99,7 +116,7 @@ Consequences:
 ## The shipped boot sequence
 
 Run by `gnssInit()` on every boot, before Bluetooth starts. Roughly **13 seconds**:
-2 × 1000 ms preamble + 17 × `GNSS_CMD_WAIT_MS` (600 ms).
+2 × 1000 ms preamble + 18 × `GNSS_CMD_WAIT_MS` (600 ms).
 
 Running it every boot is deliberate — the receiver is left in a known state no matter what
 the previous session, a firmware experiment, or the mower did to it.
@@ -119,19 +136,30 @@ the previous session, a firmware experiment, or the mower did to it.
 | 4 | `UNLOGALL COM2` | Same for COM2 — the port that fed the QD-02 data module we dropped. | ✅ |
 | 5 | `UNLOGALL COM3` | Same for COM3. | ✅ |
 | 6 | `FIX NONE` | **Critical.** Clears the stored base-station coordinate. A base is `FIX POSITION`-ed to a surveyed point and will not compute a rover solution while that is set. | ✅ |
-| 7 | `RTKOBSMODE 0` | Select **rover** observation mode. | ✅ |
-| 8 | `RTKDYNAMICS FOOT` | Kinematic model. `FOOT` = walking survey. See the table below. | ✅ |
-| 9 | `UNLOCKOUTALL` | Re-enable every satellite/constellation the base config may have locked out. | ✅ |
-| 10 | `LOG COM1 GPGGA ONTIME 1` | Position, fix quality, sats, HDOP, altitude, **correction age**, base ID. The single most important sentence — NTRIP clients also echo it back to the caster. | ✅ |
-| 11 | `LOG COM1 GPGST ONTIME 1` | Position-error statistics: σ latitude / σ longitude / σ altitude. This is where "6 mm" comes from. | ✅ |
-| 12 | `LOG COM1 GPGSA ONTIME 1` | Active satellites, PDOP / HDOP / VDOP. | ✅ |
-| 13 | `LOG COM1 GPGSV ONTIME 1` | Satellites in view with SNR. Useful for siting; the bulkiest sentence by far. | ✅ |
-| 14 | `LOG COM1 GPRMC ONTIME 1` | Recommended minimum: position, speed, course, date. Some apps refuse to start without it. | ✅ |
-| 15 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
-| 16 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
-| 17 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. | ✅ |
-| 18 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
-| 19 | `INTERFACEMODE SAVECONFIG` | Persist. See the note under [Persistence](#persistence-and-reset). | ✅ |
+| 7 | `SET APPSCENE Survey` | Select **rover survey** application scenario. Replaces `RTKDYNAMICS FOOT` (not in V3.1). See V3.1 §2.2.24, Table 2-5. | ✅ |
+| 8 | `UNLOCKOUTALL` | Re-enable every satellite/constellation the base config may have locked out. | ✅ |
+| 9 | `INSCONTROL ENABLE` | Enable INS navigation — only on full K803 with IMU. Silently rejected on K803 Lite (not fatal). | ✅ |
+| 10 | `SET SMOOTHEDDR ON` | Enable dead-reckoning smoothing — only on full K803 with IMU. Silently rejected on K803 Lite (not fatal). See V3.1 §4.5.4. | ✅ |
+| 11 | `LOG COM1 GPGGA ONTIME 1` | Position, fix quality, sats, HDOP, altitude, **correction age**, base ID. The single most important sentence — NTRIP clients also echo it back to the caster. | ✅ |
+| 12 | `LOG COM1 GPGST ONTIME 1` | Position-error statistics: σ latitude / σ longitude / σ altitude. This is where "6 mm" comes from. | ✅ |
+| 13 | `LOG COM1 GPGSA ONTIME 1` | Active satellites, PDOP / HDOP / VDOP. | ✅ |
+| 14 | `LOG COM1 GPGSV ONTIME 1` | Satellites in view with SNR. Useful for siting; the bulkiest sentence by far. | ✅ |
+| 15 | `LOG COM1 GPRMC ONTIME 1` | Recommended minimum: position, speed, course, date. Some apps refuse to start without it. | ✅ |
+| 16 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
+| 17 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
+| 18 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
+| 19 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
+| 20 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Sent after the port stops parsing ASCII — see the note below.** | ✅ |
+
+> ⚠️ **`SAVECONFIG` is in the wrong place and is effectively dead code.** It is emitted
+> *after* `INTERFACEMODE … AUTO AUTO ON`, at which point the port interprets incoming bytes
+> as RTCM and no longer reads ASCII, so the receiver never sees it as a command. It is
+> harmless (nothing rejects it, nothing acts on it), and it costs nothing, because the ESP32
+> replays the entire sequence on every boot and never relies on stored state.
+>
+> If you want the configuration to survive without the ESP32, move `SAVECONFIG` to just
+> **before** the `INTERFACEMODE` line and check the reply in the boot log. Until that is
+> done and verified on a real unit, treat the receiver's non-volatile config as untouched.
 
 After the sequence the firmware drains the echo tail so the first bytes a phone receives are
 live NMEA, not a command transcript.
@@ -157,20 +185,15 @@ messages continuously; leaving them on wastes bandwidth and confuses NMEA parser
 ### Port configuration
 
 ```
-COM COM1 115200 N 8 1 N OFF
-     │    │      │ │ │ │  └── handshake
-     │    │      │ │ │ └───── parity (again, echo)
-     │    │      │ │ └─────── stop bits
-     │    │      │ └───────── data bits
-     │    │      └─────────── parity
-     │    └──────────────────  baud
-     └───────────────────────  port
+COM COM1 115200
+    │    └──────  baud: 1200, 4800, 9600, 19200, 38400,
+    └───────────  port: COM1~COM4        57600, 115200, 230400, 460800, 921600
 ```
 
 | Command | Effect | |
 |---|---|---|
-| `COM COM1 115200 N 8 1 N OFF` | Set COM1 to 115200 8N1, no handshaking | 🔷 |
-| `LOG COMCONFIG` | Report the current port settings | ✅ |
+| `COM COM1 115200` | Set COM1 baud rate. V3.1 §2.2.1 defines only `<port> <baudrate>` — parity, stop bits and handshaking are not settable. | 🔷 |
+| `LOG COMCONFIG` | Report the current port settings. See V3.1 §3.2.2.1, Table 3-4 entry #10. | ✅ |
 
 > ⚠️ **Changing the baud rate will lock you out.** The receiver switches the moment the
 > command is acknowledged; your terminal (or the ESP32) is still on the old rate. If you
@@ -183,21 +206,25 @@ COM COM1 115200 N 8 1 N OFF
 | Command | Effect | |
 |---|---|---|
 | `FIX NONE` | Clear any fixed/base coordinate — required for rover operation | ✅ |
-| `RTKOBSMODE 0` | Rover observation mode | ✅ |
 | `UNLOCKOUTALL` | Re-enable all satellites previously locked out | ✅ |
-| `RTKDYNAMICS <mode>` | Kinematic model, see below | ✅ |
-| `FIX POSITION <lat> <lon> <hgt>` | Turn the unit **back into a base** at a known coordinate | 🔷 |
-| `LOCKOUT <sv>` | Exclude a specific satellite | 🔷 |
+| `SET APPSCENE Survey` | Select application scenario: Survey, Robot, Car, Uav, Air, Space. See V3.1 §2.2.24, Table 2-5. | ✅ |
+| `FIX POSITION <lat> <lon> <h>` | Turn the unit **back into a base** at a known coordinate (lat/lon in degrees, h in m MSL). See comnav.md K2. | 🔷 |
+| `LOCKOUT <prn>` | Exclude a specific satellite by PRN number. See V3.1 §2.2.12. | 🔷 |
 
-**`RTKDYNAMICS` modes:**
+> ⚠️ `SET APPSCENE` replaces `RTKDYNAMICS FOOT` and `RTKOBSMODE 0` from older docs.
+> Both `RTKDYNAMICS` and `RTKOBSMODE` are **not present** in V3.1 — they were Lite-only
+> or older firmware constructs.
+
+**`SET APPSCENE` modes:**
 
 | Mode | Use |
 |---|---|
-| `FOOT` | Walking survey — **the firmware default**, and what you want for a pole rover |
-| `LAND` | Vehicle-mounted |
-| `AIR` | Aircraft / drone |
-| `STATIC` | Stationary occupation |
-| `AUTO` | Let the receiver decide |
+| `Survey` | Walking survey / pole rover — **the firmware default** |
+| `Robot` | Mobile robot |
+| `Car` | Vehicle-mounted |
+| `Uav` | Drone |
+| `Air` | Aircraft |
+| `Space` | Spacecraft |
 
 Change it in `kCommands[]` if you are mounting the rover on a vehicle or a drone.
 
@@ -208,6 +235,7 @@ LOG <port> <sentence> ONTIME <interval>
 ```
 
 `<interval>` is in **seconds**: `1` = 1 Hz, `0.2` = 5 Hz, `0.1` = 10 Hz.
+See V3.1 §2.2.14 for ONTIME trigger format.
 
 | Sentence | Contents | Consumed by |
 |---|---|---|
@@ -228,6 +256,7 @@ LOG <port> <sentence> ONTIME <interval>
 | `2` | DGPS / SBAS | 0.5–2 m |
 | `4` | **RTK FIXED** | **~10 mm** ← the goal |
 | `5` | RTK FLOAT | 0.2–1 m |
+| `6` | GNSS/INS integrated | IMU-assisted |
 
 The dashboard and SW Maps both decode this. `4` is what you are aiming for.
 
@@ -247,20 +276,29 @@ LOG VERSION
 
 Returns model, firmware build, serial number and enabled authorizations. Run this first on a
 new unit — it tells you which constellations, frequencies and output rates you actually own.
-✅
+Abbreviated ASCII format: `<VERSION COM1 0 60.0 FINESTEERING 2437 389513.150 00000000 0000 1114`
+followed by `GPSCARD` line with model, SN, board, FW version, build date.
 
 #### `LOG COMCONFIG`
 
 Reports current port settings. The boot sequence runs it **before** `INTERFACEMODE … AUTO
-AUTO ON`, because afterwards the port will not answer. ✅
+AUTO ON`, because afterwards the port will not answer.
+
+#### `LOG SYSCONFIG`
+
+Reports the full system configuration in one dump: PVT/PPP/RTK frequency, cut angles,
+lockout status, RTK base mode, app scene, interface mode per port, PPS control, datum, etc.
+Useful for diff-checking after write commands. See comnav.md.
 
 #### Other useful logs
 
 | Command | Purpose | |
 |---|---|---|
-| `LOG BESTPOSA ONTIME 1` | ComNav/NovAtel ASCII position with solution status and stdevs — richer than GGA | 🔷 |
-| `LOG RTKPOSA ONTIME 1` | RTK solution detail | 🔷 |
-| `LOG SATVISA ONTIME 10` | Satellite visibility | 🔷 |
+| `LOG BESTPOSA ONTIME 1` | ComNav ASCII position with solution status and stdevs — richer than GGA. See V3.1 §3.2.5.1. | 🔷 |
+| `LOG BESTVELA ONTIME 1` | Best velocity (ID 99). See V3.1 §3.2.5.2. | 🔷 |
+| `LOG PSRPOSA ONTIME 1` | Pseudorange position (ID 47). See V3.1 §3.2.5.5. | 🔷 |
+| `LOG SATVISA ONTIME 10` | Satellite visibility (ID 48). See V3.1 §3.2. | 🔷 |
+| `LOG LOGLIST` | List all available log types (ID 5). See V3.1 §3.2.2.2. | 🔷 |
 
 These are ASCII logs, not NMEA. Handy on the bench; leave them off in the field, since GIS
 apps will not parse them and they eat bandwidth.
@@ -268,39 +306,120 @@ apps will not parse them and they eat bandwidth.
 ### Interface mode and differential input
 
 ```
-INTERFACEMODE <port> <rx-protocol> <tx-protocol> <responses on/off>
+INTERFACEMODE <port> <input-mode> <output-mode> <switch>
 ```
 
 | Command | Effect | |
 |---|---|---|
 | `INTERFACEMODE COM1 AUTO AUTO ON` | Auto-detect on both directions — RTCM3 corrections in, logs out. **Rover mode.** | ✅ |
 | `INTERFACEMODE COMPASS COMPASS ON` | Back to the ComNav protocol so ASCII commands are parsed again. **The escape hatch.** | ✅ |
-| `INTERFACEMODE COM1 RTCMV3 NOVATEL ON` | Explicit: RTCM3 in, ComNav/NovAtel out. Use if `AUTO` misbehaves on your build | 🔷 |
-| `INTERFACEMODE COM1 NOVATEL NOVATEL ON` | ASCII both ways — no corrections accepted | 🔷 |
+| `INTERFACEMODE COM1 RTCMV3 RTCMV3 ON` | Explicit: RTCM3 in and out. Use if `AUTO` misbehaves on your build | 🔷 |
 
 With `AUTO` on the receive side, the RTCM3 stream your phone forwards is detected and fed to
 the RTK engine with no further configuration. That is the entire correction path.
+
+> V3.1 §2.2.10: `input-mode` can be `NONE`, `RTCMV3`, `AUTO`, `COMPASS`. `output-mode`
+> remains in universal mode regardless of this command.
+
+> ⚠️ **Unverified on FW 7.4.6.** A separate test rig (comnav.md, K1) reports that a bare
+> `INTERFACEMODE` — and `LOG INTERFACEMODE` / `LOG COM1 INTERFACEMODE` — returns
+> `Error! Invalid key word!` on FW 7.4.6, and that `LOG SYSCONFIG` shows all five ports
+> already at `RxMode: COMPASSNAV, TxMode: COMPASSNAV`. That test only probed the **bare**
+> keyword and the query forms; the full `INTERFACEMODE <port> <in> <out> <switch>` form used
+> here was **not** exercised. Note the asymmetry: existence of a command on ComNav is *not*
+> reliably probed by sending it bare (`FIX POSITION` bare also answers `OK!`), so
+> `Invalid key word` on the bare form does not prove the full form is absent.
+>
+> Practical consequence: if `INTERFACEMODE … AUTO AUTO ON` turns out to be unsupported on your
+> firmware, RTCM3 from the phone will not reach the RTK engine and you will never get
+> `GGA` quality `4` — the boot log will show `REJECTED` on that line. Verify it on your own
+> unit with the boot log before trusting rover mode.
 
 ### Persistence and reset
 
 | Command | Effect | |
 |---|---|---|
-| `SAVECONFIG` | Write the current configuration to non-volatile memory | 🔷 |
-| `INTERFACEMODE SAVECONFIG` | The literal final line of the shipped sequence — see the note below | ✅ |
-| `RESET` | Warm reset; configuration retained | 🔷 |
-| `FRESET` | **Factory reset.** Wipes configuration, saved almanac and ephemeris | 🔷 ⚠️ |
-
-> **On the last line of the boot sequence.** The firmware sends
-> `INTERFACEMODE SAVECONFIG`; the documented ComNav form for persisting configuration is a
-> bare `SAVECONFIG`. It does not matter operationally here, because the ESP32 replays the
-> whole sequence on every boot and never relies on stored state — which is also why the
-> rover survives someone else's experiments. If you want the configuration to persist
-> independently of the ESP32, send a bare `SAVECONFIG` manually **before**
-> `INTERFACEMODE COM1 AUTO AUTO ON`, and verify the response.
+| `SAVECONFIG` | Write the current configuration to non-volatile memory. See V3.1 §2.2.22. | ✅ |
+| `RESET` | Warm reset; configuration retained (reverts to last SAVECONFIG or factory default). See V3.1 §2.2.17. | 🔷 |
+| `FRESET` | **Factory reset.** Wipes configuration, saved almanac and ephemeris. See V3.1 §2.2.7. | 🔷 ⚠️ |
 
 > `FRESET` also clears the almanac, so the next cold start is slow (minutes, not seconds).
 > Prefer `UNLOGALL` + explicit configuration. Keep `FRESET` for a receiver that is genuinely
 > stuck.
+
+---
+
+### IMU / Dead-reckoning (full K803 only)
+
+The full K803 (not Lite) includes an IMU for inertial navigation and dead-reckoning.
+These commands are from V3.1 Chapter 4.5.
+
+| Command | Effect | |
+|---|---|---|
+| `INSCONTROL ENABLE` | Enable INS navigation. See V3.1 §2.2.23. | ✅ |
+| `INSCONTROL DISABLE` | Disable INS navigation. | 🔷 |
+| `INSCONTROL ENABLE 0/1/2/3` | Set INS mode. See V3.1 §4.5.4. | 🔷 |
+| `SET SMOOTHEDDR ON` | Enable dead-reckoning smoothing. See V3.1 §4.5.4. | ✅ |
+| `SET SMOOTHEDDR OFF` | Disable dead-reckoning smoothing. | 🔷 |
+| `SET IMUAXESTYPE 1/2/3/4/5/6/7/8` | Set IMU axis orientation. See V3.1 §4.5.4. | 🔷 |
+| `SET DRLEVERARM X Y Z` | Set lever arm vector from antenna phase center to IMU. Range: ±20 m. See V3.1 §4.5.2. | 🔷 |
+| `SET DRCONFIG 1.0` | Set DR configuration parameter. See V3.1 §4.5.4. | 🔷 |
+| `INSCONTROL CLEAR` | Clear INS state. See V3.1 §4.5.4. | 🔷 |
+| `SET DRTIMEOUT 0-3600` | Set DR timeout in seconds. See V3.1 §4.5.4. | 🔷 |
+| `TST DR RAW ON` | Enable raw DR debug output. See V3.1 §4.5.4. | 🔷 |
+
+> These commands are silently rejected if the unit does not support IMU (K803 Lite).
+> The firmware does not treat rejections as fatal.
+
+#### INS initialization
+
+After enabling INS, the receiver must be initialized:
+
+1. Enable INS: `INSCONTROL ENABLE`
+2. Enter RTK fixed solution mode using differential data
+3. Drive/move the receiver in an open environment to reach initialization speed
+4. Drive approximately 10 meters to complete initialization
+5. Save configuration: `SAVECONFIG`
+
+---
+
+### RTCM relay
+
+| Command | Effect | |
+|---|---|---|
+| `SET RELAYRTCMV3 ON COM2` | Relay RTCM3 from COM1 to COM2. See comnav.md K10. | 🟡 |
+| `SET RELAYRTCMV3 OFF COM2` | Disable RTCM3 relay. | 🟡 |
+
+> State is visible in `LOG SYSCONFIG` as `RelayRtcmv3: ON, COM2` or `OFF, COM1`.
+
+---
+
+### System lockout
+
+| Command | Effect | |
+|---|---|---|
+| `LOCKOUTSYSTEM GPS` | Lock out all satellites in a system (GPS, GLONASS, GALILEO, BD2, BD3). See comnav.md K5. | 🟡 |
+| `UNLOCKOUTSYSTEM GPS` | Unlock all satellites in a system. | 🟡 |
+| `UNLOCKOUTALL` | Re-enable all previously locked-out satellites (V3.1 §2.2.28). | ✅ |
+
+> State is visible in `LOG SYSCONFIG` under `Lockouted SVs:`. Default from factory:
+> all systems unlocked (empty lists).
+
+---
+
+### PPS output
+
+| Command | Effect | |
+|---|---|---|
+| `PPSCONTROL ENABLE <polarity> <period_s> <pulse_width_us>` | Configure PPS output. See comnav.md K4. | 🟡 |
+| `PPSCONTROL DISABLE` | Disable PPS output. | 🟡 |
+
+- `polarity`: `POSITIVE` (triggered on falling edge) or `NEGATIVE` (triggered on rising edge)
+- `period_s`: 0.05–20.0 s (0.05, 0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 3.0, …)
+- `pulse_width_us`: any positive value ≤ half the period, in **microseconds**
+
+> Default from factory: `ENABLE POSITIVE 1.00s 1000us Model:0`. State visible in
+> `LOG SYSCONFIG` as `PPS Control: Switch: ENABLE; Polarity: POSITIVE; Period: 1.00s; Width: 1000us; Model:0`.
 
 ---
 
@@ -410,18 +529,20 @@ All of it lives in one array in [`src/gnss_init.cpp`](src/gnss_init.cpp):
 
 ```c
 static const char *const kCommands[] = {
-    "UNLOGALL COM1",
+    "UNLOGALL " GNSS_CMD_PORT,
     ...
     "LOG " GNSS_CMD_PORT " GPGGA ONTIME 1",
     ...
     "INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON",   // LAST
+    "SAVECONFIG",
 };
 ```
 
 Rules:
 
-1. `INTERFACEMODE … AUTO AUTO ON` **stays last.** Anything after it is shouted into a port
-   that is no longer listening.
+1. `INTERFACEMODE … AUTO AUTO ON` is the **last command the receiver can still hear.**
+   Anything after it is shouted into a port that is no longer listening — which is exactly
+   where the shipped `SAVECONFIG` currently sits (see [the note above](#the-shipped-boot-sequence)).
 2. Add diagnostics before `LOG COMCONFIG`, not after.
 3. `GNSS_CMD_PORT` is a macro — use the concatenation form so one define changes every line.
 4. Watch the boot log for `REJECTED` after any change.
@@ -507,14 +628,21 @@ link is fine and only those commands are unsupported.
 - **Base-station leftovers.** The unit came configured to *transmit* corrections. Unlog
   COM2/COM3 as well — we dropped the QD-02 data link, and there is no reason to keep feeding
   a port nothing is listening on.
-- **Reply parsing.** The firmware only looks for `Invalid` and `ERROR`. A command can be
+- **Reply parsing.** The firmware only looks for `Invalid` in the reply. A command can be
   accepted syntactically and still be a no-op if the feature is not authorized — check
   `LOG VERSION`.
 - **Don't save a baud change** unless you also change `GNSS_BAUD` and reflash.
 - **Talker IDs vary.** `$GPGGA` vs `$GNGGA` is normal, and neither breaks anything.
-- **Board revisions vary.** These commands are verified on one K803 Lite from one GOAT base
-  station. If your unit behaves differently, please open an issue with `LOG VERSION` output
-  and the boot log.
+- **Board revisions vary.** The boot sequence was confirmed by upstream on one K803 **Lite**
+  from one ECOVACS base station; it has not been re-confirmed on the full K803. If your unit
+  behaves differently, please open an issue with `LOG VERSION` output and the boot log.
+- **`SET APPSCENE` replaces `RTKDYNAMICS` and `RTKOBSMODE`.** Both are absent from V3.1
+  and not supported by FW 7.4.6. Sending them will return `Error! Invalid key word!`.
+- **IMU commands are optional.** `INSCONTROL ENABLE` and `SET SMOOTHEDDR ON` are silently
+  rejected on K803 Lite. This is expected and not an error.
+- **`SYSCONFIG` is read-only via `LOG`.** There is no `SET SYSCONFIG` command — the
+  `SYSCONFIG` keyword in comnav.md was an error. Use individual commands (e.g. `PPSCONTROL`,
+  `SET RELAYRTCMV3`) and verify via `LOG SYSCONFIG`.
 
 ---
 

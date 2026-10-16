@@ -50,8 +50,10 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 - [x] `install/index.html`: убрана DevKitC секция, «K803 Lite» → «K803»
 - [x] `src/link.h`: обновлён комментарий, убран SPP
 
-- [ ] `COMMANDS.md`: обновить команды, убрать непроверенные, добавить IMU-команды
-- [ ] `web/rtk-monitor.html`: проверить, нет ли упоминаний Lite/SPP/DevKitC
+- [x] `COMMANDS.md`: переписан под полную K803 — убраны `RTKOBSMODE`/`RTKDYNAMICS`/
+      `INTERFACEMODE SAVECONFIG`, добавлены `SET APPSCENE`, IMU/DR (§4.5 V3.1),
+      `LOG SYSCONFIG`, RTCM relay, lockout, PPS. Все ссылки — на разделы V3.1
+- [x] `web/rtk-monitor.html`: проверено — упоминаний Lite/SPP/DevKitC/hmd83 нет
 - ⚠️ **Не менять** физический разъём/пины до проверки конкретной платы —
       у полной K803 несущая плата и harness могут отличаться от Lite
 
