@@ -52,6 +52,9 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     notifyEnabled = false;
     connHandle = BLE_HS_CONN_HANDLE_NONE;
     notifyMax = 20;
+    // Drain any pending corrections so they don't reach the GNSS after a
+    // disconnect — they are stale by definition.
+    if (downlink) xStreamBufferReset(downlink);
     DBG("[BLE] disconnected (reason 0x%02x), advertising again\n", reason);
     NimBLEDevice::startAdvertising();
   }
@@ -75,6 +78,10 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *chr, NimBLEConnInfo &info) override {
     NimBLEAttValue val = chr->getValue();
     if (val.length() == 0) return;
+    // downlink is only nullptr before linkBegin() completes; in practice
+    // the callback fires only after the characteristic is created, but
+    // guard against the edge case anyway.
+    if (!downlink) return;
     xStreamBufferSend(downlink, val.data(), val.length(), 0);
   }
 };
@@ -155,7 +162,7 @@ bool linkWrite(const uint8_t *data, size_t len) {
 }
 
 size_t linkRead(uint8_t *buf, size_t max) {
-  if (xStreamBufferBytesAvailable(downlink) == 0) return 0;
+  if (!downlink || xStreamBufferBytesAvailable(downlink) == 0) return 0;
   return xStreamBufferReceive(downlink, buf, max, 0);
 }
 

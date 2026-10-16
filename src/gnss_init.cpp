@@ -8,7 +8,6 @@
 // the full board too, but are not documented in V3.1.
 
 #include <Arduino.h>
-#include <ctype.h>
 #include <string.h>
 
 #include "config.h"
@@ -55,19 +54,14 @@ static const char *const kCommands[] = {
     "SAVECONFIG",                                 // (V3.1 2.2.22) persist config
 };
 
-static char resp[512];  // a VERSION reply is a few hundred bytes
+static char resp[1024];  // LOG VERSION can exceed 512 bytes on some firmwares
 
-static bool containsNoCase(const char *hay, const char *needle) {
-  for (; *hay; ++hay) {
-    const char *h = hay;
-    const char *n = needle;
-    while (*n && toupper((unsigned char)*h) == toupper((unsigned char)*n)) {
-      ++h;
-      ++n;
-    }
-    if (!*n) return true;
-  }
-  return false;
+// Check for "Error!" — the exact rejection prefix in ComNav FW 7.4.6.
+// Do NOT search for "ERROR" as a substring: it can appear in normal output
+// (e.g. "ERRORCODE 0") and would trigger a false REJECTED.
+static bool isRejected(const char *resp) {
+  return strstr(resp, "Invalid") != nullptr ||
+         strstr(resp, "Error!")   != nullptr;
 }
 
 // Mirrors the script's send(): drop whatever was streaming, write the command,
@@ -95,7 +89,7 @@ static void sendCmd(HardwareSerial &ser, const char *cmd, uint32_t waitMs) {
     resp[--n] = '\0';
 
   DBG("[<] %s\n", n ? resp : "(no response)");
-  if (n && (strstr(resp, "Invalid") || containsNoCase(resp, "ERROR")))
+  if (n && isRejected(resp))
     DBG("    ^^ REJECTED: %s\n", cmd);
 }
 

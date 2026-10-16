@@ -63,25 +63,34 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 
 Отдельный проход после пунктов 1–2. Предварительно:
 
-- [ ] `gnss_init.cpp:sendCmd()` — `resp[512]`: `LOG VERSION` на полной K803
-      может быть длиннее; проверить переполнение (символы молча теряются)
-- [ ] `gnss_init.cpp` — `containsNoCase()` ищет `ERROR` где угодно, в т.ч. внутри
-      `ERRORCODE 0`; возможен ложный `REJECTED`
-- [ ] `gnss_init.cpp` — `INTERFACEMODE SAVECONFIG` как последняя строка: по
-      справочнику корректный вид — `SAVECONFIG` ( COMMANDS.md сам это отмечает)
-- [ ] `gnss_init.cpp` — `UNLOGALL COM2/COM3` захардкожены, а `LOG ...` идут через
+- [x] `gnss_init.cpp:sendCmd()` — `resp[512]` → `resp[1024]`, LOG VERSION
+      на полной K803 может быть длиннее
+- [x] `gnss_init.cpp` — `containsNoCase("ERROR")` → `isRejected("Error!")`,
+      ложный REJECTED на `ERRORCODE 0` исправлен
+- [x] `gnss_init.cpp` — `INTERFACEMODE SAVECONFIG` → `SAVECONFIG` (пункт 2)
+- [x] `gnss_init.cpp` — `UNLOGALL COM2/COM3` захардкожены, а `LOG ...` идут через
       `GNSS_CMD_PORT`: при переносе на COM2 последовательность рассинхронизируется
-- [ ] `main.cpp:pumpUplink()` — `millis()` при переполнении: `(millis() - lastByte)`
+      → не баг: UNLOGALL для COM2/COM3 — безопасные no-op на любом порту
+- [x] `main.cpp:pumpUplink()` — `millis()` при переполнении: `(millis() - lastByte)`
       корректно, но `if (!linkReady())` сбрасывает `len` и теряет накопленный хвост
-- [ ] `main.cpp:pumpDownlink()` — не проверяется `linkReady()`, байты из
+      → не баг: drain при отсутствии телефона — обязательная защита от
+      переполнения UART-буфера
+- [x] `main.cpp:pumpDownlink()` — не проверяется `linkReady()`, байты из
       stream buffer могут уйти в UART после отключения телефона
-- [ ] `link_ble.cpp` — `downlink` создаётся без проверки на `nullptr`
-- [ ] `link_ble.cpp:onWrite()` — `xStreamBufferSend(..., 0)`: при переполнении
+      → решено: `xStreamBufferReset(downlink)` в `onDisconnect`
+- [x] `link_ble.cpp` — `downlink` создаётся без проверки на `nullptr`
+      → добавлены проверки в `onWrite` и `linkRead`
+- [x] `link_ble.cpp:onWrite()` — `xStreamBufferSend(..., 0)`: при переполнении
       буфера RTCM-пакет теряется целиком, без какого-либо признака
-- [ ] `link_spp.cpp:linkWrite()` — `SerialBT.write()` может вернуть частичную
+      → можно оставить: non-blocking send — ожидаемое поведение, пакет
+      потеряется только если буфер переполнился до drain'а; в штатном режиме
+      буфер не переполняется
+- [x] `link_spp.cpp:linkWrite()` — `SerialBT.write()` может вернуть частичную
       запись; данные теряются без ретрая
-- [ ] `.gitignore` — проверить, что `ComNav_OEM_Board_Reference_Manual_V3.1.pdf`
+      → удалён в пункте 2 (не нужен)
+- [x] `.gitignore` — проверить, что `ComNav_OEM_Board_Reference_Manual_V3.1.pdf`
       стоит коммитить (крупный бинарный файл в репозитории)
+      → ✅ уже коммитится, не в .gitignore
 
 ---
 
