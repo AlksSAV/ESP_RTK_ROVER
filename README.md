@@ -136,7 +136,7 @@ Any NTRIP caster serving RTCM 3.x works.
 
 ## Live dashboard
 
-**[Open the dashboard →](https://hmd83.github.io/ESP_RTK_ROVER/web/rtk-monitor.html)**
+**[Open the dashboard →](web/rtk-monitor.html)**
 
 One self-contained HTML file. Connects to the rover over Web Bluetooth in Chrome or Edge and
 decodes the stream live: fix quality, position, σ values, DOPs, correction age, and a raw NMEA
