@@ -114,7 +114,7 @@ Build env `xiao_esp32c6_ble` (the only one). `UART1`, `PIN_GNSS_RX=17`, `PIN_GNS
  │  GND  ●─────── yellow ┼───────────────────┤ GND               │
  │  5 V  ●─────── orange ┼───────────────────┤ 5V (VBUS)         │
  │                       │                   │                   │
- │  ANT ●── U.FL/SMA ────┼──▶ Beitian BT-800D │  USB-C ───────────┼──▶ power bank
+ │  ANT ●── board port ──┼──▶ Beitian BT-800D │  USB-C ───────────┼──▶ power bank
  └───────────────────────┘    on the pole    └───────────────────┘
 ```
 
@@ -189,11 +189,14 @@ definitively power.
 An **external antenna** on the board's antenna port: a **Beitian BT-800D** — a full-frequency
 RTK mushroom antenna, active (built-in LNA), with published phase-centre calibration.
 
+![Beitian BT-800D](media/antenna-bt800d.jpg)
+
 | | |
 |---|---|
 | GNSS code (NGS) | `BEIBT800D` |
 | Bands | GPS L1/L2/L5 · BDS B1/B2/B3/B1C/B2a/B2b · GLONASS L1/L2/L3 · Galileo E1/E5a/E5b/E6 · SBAS · QZSS |
 | Type | Active — LNA inside, needs DC on the centre pin |
+| Antenna connector | **TNC** (on the pigtail), 50 Ω |
 | ARP definition | **BAM** — Bottom of the Antenna Mount |
 | Reference direction | RXC→North (the RF connector points north) |
 | Phase centre offset (L1) | north **0.6 mm** · east **1.2 mm** · up **73.7 mm** |
@@ -341,6 +344,7 @@ Photos worth capturing — drop them in `media/` and the placeholders above beco
 | `board-pinout.jpg` | The four signals called out on the board |
 | `antenna-port.jpg` | Antenna connector on the board |
 | `antenna-bias-voltage.jpg` | Multimeter reading on the antenna centre pin |
+| `antenna-bt800d.jpg` | Beitian BT-800D, TNC connector on the pigtail — ✅ in repo |
 | `antenna-on-pole.jpg` | Beitian BT-800D on the pole, cable routed |
 | `wiring-xiao.jpg` | XIAO wired up, wire colours visible |
 | `housing-print.jpg` | Printed parts |
