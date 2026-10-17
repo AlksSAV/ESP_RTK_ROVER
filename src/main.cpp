@@ -145,10 +145,41 @@ static bool pumpDownlink() {
 }
 
 // ---------------------------------------------------------------------------
+// 1 PPS input (optional)
+// ---------------------------------------------------------------------------
+// The receiver's time pulse is a hardware signal, so it cannot travel over the
+// byte-transparent Bluetooth bridge. Counting it here and reporting the rate on
+// the USB console keeps the bridge pure while still making the timing reference
+// verifiable: ~1.000 Hz means the receiver locked and PPSCONTROL took effect.
+#if USE_PPS
+static volatile uint32_t ppsEdges = 0;
+
+static void IRAM_ATTR ppsIsr() { ppsEdges += 1; }
+
+static void ppsInit() {
+  pinMode(PIN_PPS, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIN_PPS), ppsIsr, RISING);
+}
+
+static uint32_t ppsSnapshot() {
+  noInterrupts();
+  uint32_t val = ppsEdges;
+  interrupts();
+  return val;
+}
+#else
+static void ppsInit() {}
+static uint32_t ppsSnapshot() { return 0; }
+#endif
+
+// ---------------------------------------------------------------------------
 #if DEBUG_USB
 static void printStats() {
   static uint32_t last = 0;
   static uint32_t upPrev = 0, downPrev = 0;
+#if USE_PPS
+  static uint32_t ppsPrev = 0;
+#endif
 
   uint32_t now = millis();
   if (now - last < DEBUG_STATS_MS) return;
@@ -160,6 +191,14 @@ static void printStats() {
                 linkName(), linkReady() ? "linked" : "waiting",
                 (bytesToPhone - upPrev) / secs, (unsigned long)bytesToPhone,
                 (bytesToGnss - downPrev) / secs, (unsigned long)bytesToGnss);
+
+#if USE_PPS
+  // Snapshot first: the ISR keeps running while the line is being formatted.
+  uint32_t edges = ppsSnapshot();
+  Serial.printf("  pps %.2f Hz (%lu)", (edges - ppsPrev) / secs,
+                (unsigned long)edges);
+  ppsPrev = edges;
+#endif
 
   if (gnssStatus.result == GNSS_INIT_NO_REPLY)
     Serial.printf("  GNSS NO REPLY");
@@ -192,6 +231,10 @@ void setup() {
   // Before the link, not after: the receiver echoes its replies, and a phone
   // that connected early would otherwise be fed the whole command transcript.
   gnssStatus = gnssInit(GnssSerial);
+
+  // After init: PPSCONTROL has been sent by now, so a receiver that supports it
+  // starts pulsing while the ISR is already counting.
+  ppsInit();
 
   // Pick an LED pattern that survives into the loop and survives a phone
   // disconnect (a WARN or NO_REPLY is not transient).
@@ -226,5 +269,5 @@ void loop() {
   // Yield when there is nothing to move. A tight loop() starves the idle task
   // on this core, which eventually trips the task watchdog. 1 ms is far below
   // the UPLINK_FLUSH_MS window, so it costs no throughput.
-  if (!busy) delay(1);
+  if (!busy) vTaskDelay(pdMS_TO_TICKS(1));
 }

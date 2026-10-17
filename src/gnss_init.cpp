@@ -62,6 +62,14 @@ static const Cmd kCommands[] = {
 
     {"LOG COMCONFIG", true},  // verify BEFORE the port goes into diff mode
 
+#if USE_PPS
+    // (V3.1 2.2.15) 1 Hz pulse, positive polarity, 1000 ms width - the pin is
+    // read on the ESP32 side (main.cpp), the receiver only has to emit it.
+    // A unit without PPS support answers Invalid; that lands in the WARN count
+    // on purpose, so the missing time reference is visible at boot.
+    {"PPSCONTROL ENABLE POSITIVE 1 1000 1", true},
+#endif
+
     // LAST - after this the port no longer takes commands
     {"INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON", false},  // (V3.1 2.2.10)
     {"SAVECONFIG", false},  // (V3.1 2.2.22) persist config

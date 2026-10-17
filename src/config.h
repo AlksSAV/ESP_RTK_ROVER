@@ -79,6 +79,20 @@
 #define UPLINK_FLUSH_MS 12
 
 // ---------------------------------------------------------------------------
+// 1 PPS (optional)
+// ---------------------------------------------------------------------------
+// Enable to capture the 1 PPS time-pulse from the GNSS receiver on a GPIO pin.
+// The receiver must be configured to output PPS (PPSCONTROL ENABLE ...).
+// Frequency (Hz) is reported in the periodic stats line on the USB console.
+// Not needed for basic GIS work; useful for debugging and time-sync projects.
+#ifndef USE_PPS
+#define USE_PPS 1
+#endif
+#ifndef PIN_PPS
+#define PIN_PPS 2  // GPIO2 / D2 / A2 - interrupt-capable pin on XIAO ESP32-C6
+#endif
+
+// ---------------------------------------------------------------------------
 // Debug / LED
 // ---------------------------------------------------------------------------
 #define DEBUG_USB 1  // stats + link state on the USB console (UART0)
