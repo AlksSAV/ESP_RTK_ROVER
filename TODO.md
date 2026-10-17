@@ -209,7 +209,34 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 - [x] Данные BT-800D взяты из реестра NGS, код `BEIBT800D`: диапазоны частот, ARP=BAM,
       смещения фазового центра L1 = 0.6 / 1.2 / 73.7 мм (север / восток / вверх)
 - [ ] Раздел «Housing» — расписать после печати корпуса
-- [ ] `install/firmware/xiao-c6-ble.bin` — пересобрать после правки `gnss_init.cpp`
-      (сейчас там прошивка с `INSCONTROL ENABLE`), когда починится esptool в PlatformIO
+- [x] `install/firmware/xiao-c6-ble.bin` — пересобран из `firmware.factory.bin`
+      (см. §8): в новом бинарнике `INSCONTROL`/`SMOOTHEDDR` отсутствуют,
+      `SET APPSCENE Survey` / `SAVECONFIG` / `UNLOGALL` / `LOG VERSION` присутствуют
+
+---
+
+## 8. Починка esptool в PlatformIO
+
+Симптом: сборка падала на этапе создания `firmware.bin`:
+`ModuleNotFoundError: No module named 'esptool'` из `penv\Scripts\esptool.exe`.
+
+Причина: пакет `tool-esptoolpy` в `~/.platformio/packages/` был повреждён — в нём
+остались только `package.json` и `tools.json`, исходники `esptool/` отсутствовали.
+При этом venv PlatformIO ссылался на этот каталог через editable-install
+(`__editable__.esptool-5.3.0.pth`), поэтому модуль не импортировался.
+
+Лечение:
+1. Битый каталог переименован в `tool-esptoolpy.broken` (резерв, не удалён).
+2. Скачан официальный `esptool.zip` v5.3.0 pioarduino, sha256 сверен с `tools.json`
+   (`23d4c80f73ad2d7a8bd1f60ccb342c3db22531bedef74a24f62f5c5603d07a18`), распакован
+   в `~/.platformio/packages/tool-esptoolpy/`.
+3. В venv удалены stale editable-записи; вместо них создан `esptool.pth`,
+   добавляющий каталог пакета в `sys.path` (в venv PlatformIO нет `pip`).
+4. `pio run` → SUCCESS. `install/firmware/xiao-c6-ble.bin` перезаписан из
+   `.pio/build/xiao_esp32c6_ble/firmware.factory.bin` (bootloader + partitions +
+   otadata + app, offset 0 — как ожидает `manifest-xiao-c6-ble.json`).
+
+Проверка бинарника: `grep -a` по строкам команд — старых `INSCONTROL`/`SMOOTHEDDR`
+нет, актуальные есть.
 
 ---
