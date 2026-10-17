@@ -281,19 +281,23 @@ What the box has to do, in order of importance:
 
 ## PPS (optional)
 
-The K803 exposes a **1 PPS** time-pulse output. **The firmware does not use it** — nothing in
-`src/` reads a PPS pin, and NMEA timestamps are enough for GIS work.
+The K803 exposes a **1 PPS** time-pulse output. The firmware configures it
+automatically during init (`PPSCONTROL ENABLE POSITIVE 1 1000 1`, V3.1 §2.2.15)
+and captures it on **GPIO2 / D2 / A2** via an interrupt — the periodic stats
+line on the USB console reports the frequency (should be ~1.000 Hz).
 
-Wire it only if you are building something that needs hardware-timed sampling (camera
-triggering, sensor fusion, an NTP server):
+Wire it if you need a hardware time reference (camera triggering, sensor fusion,
+NTP server, post-processed kinematics). NMEA timestamps alone are fine for
+basic GIS work.
 
 | Signal | Level | Suggested XIAO pin | Notes |
 |---|---|---|---|
-| PPS | 3.3 V logic, ~1 Hz pulse | any free GPIO with interrupt capability | Keep the lead short; it is a timing reference |
+| PPS | 3.3 V logic, ~1 Hz pulse | GPIO2 (D2 / A2) | Keep the lead short; it is a timing reference |
 
-You will need to locate the PPS pad on your board revision — it is not part of the four
-signals in [Connections](#connections). Attach a scope or a logic analyser and look for the
-1 Hz pulse once the receiver has a position fix; PPS is typically not asserted before then.
+You will need to locate the PPS pad on your board revision — it is not part of
+the four signals in [Connections](#connections). Attach a scope or a logic
+analyser and look for the 1 Hz pulse once the receiver has a position fix; PPS
+is typically not asserted before then.
 
 > **Placeholder:** `media/pps-pad.jpg` — PPS test point identified on the board.
 

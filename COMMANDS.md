@@ -447,7 +447,8 @@ supported; otherwise check SNR in `GPGSV` — a locked-out constellation simply 
 
 Example from V3.1: `PPSCONTROL ENABLE POSITIVE 1 1000 1`.
 
-> The firmware never touches PPS — see [HARDWARE.md → PPS](HARDWARE.md#pps-optional).
+> The firmware sends `PPSCONTROL ENABLE POSITIVE 1 1000 1` during init and counts the pulse on
+> GPIO2 — see [HARDWARE.md → PPS](HARDWARE.md#pps-optional).
 
 ---
 
