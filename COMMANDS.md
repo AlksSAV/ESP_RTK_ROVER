@@ -129,7 +129,7 @@ previous session or a firmware experiment did to it.
 | # | Command | Why | |
 |---|---|---|---|
 | 1 | `INTERFACEMODE COMPASS COMPASS ON` | Escape hatch. A previous run left COM1 in RTCM auto-detect, where ASCII is ignored; this pulls it back to the ComNav ASCII/binary protocol. On a cold receiver it is a harmless no-op. **Must be first.** | ✅ |
-| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. | ✅ |
+| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 16 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
 
 ### Main sequence
 
@@ -641,8 +641,9 @@ If it still does not answer, work through:
 | Line ending | Must be CR+LF |
 | Receiver genuinely lost | `FRESET`, then reconfigure. Expect a slow first cold start |
 
-The ESP32 boot log tells you which of these it is: `(no response)` on **every** line means
-wiring, power or baud. Correct replies followed by `REJECTED` on specific commands means the
+The ESP32 boot log tells you which of these it is. Since the sequence stops at the first
+silent `LOG VERSION`, a dead link shows up as two lines and `init NO REPLY` rather than
+sixteen timeouts. Correct replies followed by `REJECTED` on specific commands means the
 link is fine and only those commands are unsupported.
 
 ---
@@ -656,9 +657,13 @@ link is fine and only those commands are unsupported.
 - **Base-station leftovers.** A board that shipped as a base is configured to *transmit*
   corrections, and it may have been doing so on more than one port. Unlog COM2/COM3 as well —
   they are harmless no-ops on a bare OEM board, and save you a mystery stream.
-- **Reply parsing.** The firmware only looks for `Invalid` in the reply. A command can be
-  accepted syntactically and still be a no-op if the feature is not authorized — check
-  `LOG VERSION`.
+- **Reply parsing.** The firmware checks every reply for `Invalid` / `Error!`. Rejected commands
+  are counted and surfaced in the boot log (`init WARN`) and in every `[STAT]` line
+  (`GNSS WARN rejected=N`). A refused `FIX NONE` leaves the unit in base mode and RTK
+  never fixes — visible as a persistent warning, not as missing data.
+- **No reply.** If `LOG VERSION` gets no answer, the entire sequence aborts after ~2 s
+  (instead of wasting ~12 s on dead commands). The boot log says `init NO REPLY` and
+  `[STAT]` shows `GNSS NO REPLY` until the receiver is wired correctly.
 - **Don't save a baud change** unless you also change `GNSS_BAUD` and reflash.
 - **Talker IDs vary.** `$GPGGA` vs `$GNGGA` is normal, and neither breaks anything.
 - **Board revisions vary.** The boot sequence was confirmed upstream on a different board, and

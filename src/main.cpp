@@ -18,6 +18,10 @@ static HardwareSerial GnssSerial(GNSS_UART_NUM);
 static uint32_t bytesToPhone = 0;
 static uint32_t bytesToGnss = 0;
 
+// Kept for the whole run: an init fault has to stay visible in the LED pattern
+// and in the periodic stats line, not scroll away with the boot log.
+static GnssInitStatus gnssStatus = {GNSS_INIT_SKIPPED, 0, 0};
+
 #if DEBUG_USB
 #define DBG(...) Serial.printf(__VA_ARGS__)
 #else
@@ -39,12 +43,40 @@ static void ledInit() {
   pinMode(LED_BUILTIN, OUTPUT);
   ledSet(false);
 }
-// Slow blink while waiting for a phone, short heartbeat blip once linked.
+
+// Blink pattern encodes the receiver init outcome:
+//   linked   → slow blink  (2 s period, 60 ms on)
+//   waiting  → fast blink  (600 ms period, 300 ms on)
+//   warn     → double flash (1 s period, 2×60 ms on, short pause)
+//   no reply → triple flash (1 s period, 3×60 ms on, short pauses)
+enum LedPattern : uint8_t {
+  LED_PATTERN_LINKED,
+  LED_PATTERN_WAITING,
+  LED_PATTERN_WARN,
+  LED_PATTERN_NO_REPLY,
+};
+static LedPattern curPattern = LED_PATTERN_WAITING;
+
+static void ledSetPattern(LedPattern p) { curPattern = p; }
+
+// WAITING/LINKED follow the phone; an init-failure pattern is latched and
+// survives both connecting and disconnecting - the fault does not go away
+// because a phone showed up.
 static void ledTask() {
-  const bool linked = linkReady();
-  const uint32_t period = linked ? 2000 : 600;
-  const uint32_t onTime = linked ? 60 : 300;
-  ledSet((millis() % period) < onTime);
+  const uint32_t t = millis();
+  LedPattern p = curPattern;
+  if (p == LED_PATTERN_LINKED || p == LED_PATTERN_WAITING)
+    p = linkReady() ? LED_PATTERN_LINKED : LED_PATTERN_WAITING;
+
+  const bool blinkOn =
+      (p == LED_PATTERN_LINKED && (t % 2000) < 60) ||
+      (p == LED_PATTERN_WAITING && (t % 600) < 300) ||
+      (p == LED_PATTERN_WARN &&
+       (t % 1000 < 60 || (t % 1000 > 200 && (t % 1000) < 260))) ||
+      (p == LED_PATTERN_NO_REPLY &&
+       (t % 1000 < 60 || (t % 1000 > 150 && (t % 1000) < 210) ||
+        (t % 1000 > 300 && (t % 1000) < 360)));
+  ledSet(blinkOn);
 }
 #else
 static void ledInit() {}
@@ -124,10 +156,17 @@ static void printStats() {
   float secs = (now - last) / 1000.0f;
   last = now;
 
-  Serial.printf("[STAT] %s %s  up %.0f B/s (%lu)  down %.0f B/s (%lu)\n",
+  Serial.printf("[STAT] %s %s  up %.0f B/s (%lu)  down %.0f B/s (%lu)",
                 linkName(), linkReady() ? "linked" : "waiting",
                 (bytesToPhone - upPrev) / secs, (unsigned long)bytesToPhone,
                 (bytesToGnss - downPrev) / secs, (unsigned long)bytesToGnss);
+
+  if (gnssStatus.result == GNSS_INIT_NO_REPLY)
+    Serial.printf("  GNSS NO REPLY");
+  else if (gnssStatus.result == GNSS_INIT_WARN)
+    Serial.printf("  GNSS WARN rejected=%u", gnssStatus.rejected);
+
+  Serial.printf("\n");
 
   upPrev = bytesToPhone;
   downPrev = bytesToGnss;
@@ -152,13 +191,27 @@ void setup() {
 
   // Before the link, not after: the receiver echoes its replies, and a phone
   // that connected early would otherwise be fed the whole command transcript.
-  gnssInit(GnssSerial);
+  gnssStatus = gnssInit(GnssSerial);
+
+  // Pick an LED pattern that survives into the loop and survives a phone
+  // disconnect (a WARN or NO_REPLY is not transient).
+  ledSetPattern(gnssStatus.result == GNSS_INIT_NO_REPLY
+                    ? LED_PATTERN_NO_REPLY
+                    : (gnssStatus.result == GNSS_INIT_WARN ? LED_PATTERN_WARN
+                                                           : LED_PATTERN_WAITING));
 
   linkBegin();
 
-  DBG("\n[SYS] %s via %s - UART%d @ %d (RX=GPIO%d, TX=GPIO%d)\n",
+  DBG("\n[SYS] %s via %s - UART%d @ %d (RX=GPIO%d, TX=GPIO%d)",
       linkDeviceName(), linkName(), GNSS_UART_NUM, GNSS_BAUD, PIN_GNSS_RX,
       PIN_GNSS_TX);
+  if (gnssStatus.result == GNSS_INIT_WARN)
+    DBG(" - init WARN (rejected=%u, noReply=%u)\n", gnssStatus.rejected,
+        gnssStatus.noReply);
+  else if (gnssStatus.result == GNSS_INIT_NO_REPLY)
+    DBG(" - init NO REPLY (receiver not answering)\n");
+  else
+    DBG("\n");
 }
 
 void loop() {

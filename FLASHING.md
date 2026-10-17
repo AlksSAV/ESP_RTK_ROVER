@@ -149,6 +149,8 @@ esptool --chip esp32c6 --port COM7 erase_flash
 Open the console at **115200**. On a XIAO you may need to reconnect after flashing — native
 USB re-enumerates.
 
+### Normal boot (all commands accepted)
+
 ```
 [GNSS] K803 rover init on COM1
 [>] INTERFACEMODE COMPASS COMPASS ON
@@ -166,19 +168,52 @@ USB re-enumerates.
 [STAT] BLE waiting  up 0 B/s (0)  down 0 B/s (0)
 ```
 
+### Warning (some commands rejected)
+
+```
+[GNSS] K803 rover init on COM1
+…
+[>] SET APPSCENE Survey
+[<] Error! Invalid key word!
+    ^^ REJECTED: SET APPSCENE Survey
+…
+[GNSS] init done with 1 REJECTED command(s)
+[BLE] advertising as "ESP32-RTK-4AAE" (xx:xx:xx:xx:4a:ae)
+[SYS] ESP32-RTK-4AAE via BLE - UART1 @ 115200 (RX=GPIO17, TX=GPIO16) - init WARN (rejected=1, noReply=0)
+[STAT] BLE waiting  up 0 B/s (0)  down 0 B/s (0)  GNSS WARN rejected=1
+```
+
+### No reply (receiver not answering)
+
+```
+[GNSS] K803 rover init on COM1
+[>] INTERFACEMODE COMPASS COMPASS ON
+[<] (no response)
+[>] LOG VERSION
+[<] (no response)
+[GNSS] NO REPLY - receiver not answering, init aborted
+[BLE] advertising as "ESP32-RTK-4AAE" (xx:xx:xx:xx:4a:ae)
+[SYS] ESP32-RTK-4AAE via BLE - UART1 @ 115200 (RX=GPIO17, TX=GPIO16) - init NO REPLY (receiver not answering)
+[STAT] BLE waiting  up 0 B/s (0)  down 0 B/s (0)  GNSS NO REPLY
+```
+
 **Reading it:**
 
 | Line | Means |
 |---|---|
 | `[>]` / `[<]` | Command sent / receiver's reply |
-| `[<] (no response)` on **every** line | Wiring, power or baud — the receiver is not talking. [HARDWARE.md](HARDWARE.md#bench-test-before-you-go-out) |
+| `[<] (no response)` on **every** init line | Wiring, power or baud — the receiver is not talking. [HARDWARE.md](HARDWARE.md#bench-test-before-you-go-out) |
 | `^^ REJECTED: …` | Link is fine, that specific command is unsupported. [COMMANDS.md](COMMANDS.md) |
-| `[SYS] … via BLE` | Confirms which build is actually running |
+| `[SYS] … - init WARN` | One or more commands were rejected — the receiver may still be in base mode. Check which command. |
+| `[SYS] … - init NO REPLY` | Nothing answered on the UART. Check wiring, power, baud. |
+| `[STAT] …  GNSS WARN rejected=N` | Persistent warning visible every stats cycle |
+| `[STAT] …  GNSS NO REPLY` | Persistent warning — receiver not communicating |
 | `[STAT] … up 512 B/s` | Receiver is streaming **and** a phone is linked |
 | `[STAT] … down 240 B/s` | RTCM corrections are reaching the receiver |
 
 The whole init takes about **12 seconds** before Bluetooth comes up. That is expected — 16
-commands at 600 ms each, plus a 2 s preamble.
+commands at 600 ms each, plus a 2 s preamble. If the receiver does not answer `LOG VERSION`,
+the sequence aborts early and the bridge comes up after ~2 s instead.
 
 > The init sequence runs before the link starts on purpose: the receiver echoes its replies,
 > and a phone that connected early would otherwise be fed the entire command transcript as if
@@ -282,6 +317,8 @@ Bump `version` in the manifest on every release so returning users are offered t
 | Console silent on a XIAO | Native USB re-enumerates after flashing | Reopen the monitor. The firmware waits up to 1.5 s for the host at boot |
 | Console prints garbage | Baud mismatch | 115200 |
 | `[<] (no response)` on every init line | GNSS not connected, wrong baud, TX/RX swapped | [HARDWARE.md](HARDWARE.md#connections) |
+| `[SYS] init NO REPLY` | No answer from the receiver on any command | Same as above — check wiring, power, baud |
+| `[SYS] init WARN` / `[STAT] GNSS WARN` | Some commands rejected — receiver may be in wrong mode | Check which command was rejected in the boot log |
 | Board fine on USB, dies when the GNSS is plugged in | Shared power rail | Separate supply, share only GND |
 
 **Bisecting a hardware problem:** flash and verify the board **standalone** first. Only then
