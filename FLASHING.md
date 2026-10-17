@@ -37,7 +37,7 @@ native USB needs no driver at all.
 ### Steps
 
 1. Open **[the installer](https://alkssav.github.io/ESP_RTK_ROVER/install/)**.
-2. Plug the XIAO into USB-C. **Disconnect the GNSS harness first** — flash it standalone.
+2. Plug the XIAO into USB-C. **Disconnect the receiver wiring first** — flash it standalone.
 3. Click **Connect**.
 4. Choose the serial port in the browser's dialog — `USB JTAG/serial debug unit` or similar.
 5. Click **Install**, confirm the erase prompt, and wait ~1–2 minutes.
@@ -171,13 +171,13 @@ USB re-enumerates.
 | Line | Means |
 |---|---|
 | `[>]` / `[<]` | Command sent / receiver's reply |
-| `[<] (no response)` on **every** line | Wiring, power or baud — the receiver is not talking. [HARDWARE.md](HARDWARE.md#bench-test-before-you-close-it) |
+| `[<] (no response)` on **every** line | Wiring, power or baud — the receiver is not talking. [HARDWARE.md](HARDWARE.md#bench-test-before-you-go-out) |
 | `^^ REJECTED: …` | Link is fine, that specific command is unsupported. [COMMANDS.md](COMMANDS.md) |
 | `[SYS] … via BLE` | Confirms which build is actually running |
 | `[STAT] … up 512 B/s` | Receiver is streaming **and** a phone is linked |
 | `[STAT] … down 240 B/s` | RTCM corrections are reaching the receiver |
 
-The whole init takes about **15 seconds** before Bluetooth comes up. That is expected — 21
+The whole init takes about **12 seconds** before Bluetooth comes up. That is expected — 16
 commands at 600 ms each, plus a 2 s preamble.
 
 > The init sequence runs before the link starts on purpose: the receiver echoes its replies,
@@ -281,7 +281,7 @@ Bump `version` in the manifest on every release so returning users are offered t
 | `invalid header: 0xffffffff`, `TG0WDT_SYS_RESET` **with the GNSS attached** | **Power sag, not firmware** | [HARDWARE.md → Power](HARDWARE.md#power) |
 | Console silent on a XIAO | Native USB re-enumerates after flashing | Reopen the monitor. The firmware waits up to 1.5 s for the host at boot |
 | Console prints garbage | Baud mismatch | 115200 |
-| `[<] (no response)` on every init line | GNSS not connected, wrong baud, TX/RX swapped | [HARDWARE.md](HARDWARE.md#harness-pinout) |
+| `[<] (no response)` on every init line | GNSS not connected, wrong baud, TX/RX swapped | [HARDWARE.md](HARDWARE.md#connections) |
 | Board fine on USB, dies when the GNSS is plugged in | Shared power rail | Separate supply, share only GND |
 
 **Bisecting a hardware problem:** flash and verify the board **standalone** first. Only then

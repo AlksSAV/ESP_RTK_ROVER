@@ -41,6 +41,7 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 - [x] `gnss_init.cpp`: `RTKDYNAMICS FOOT` → `SET APPSCENE Survey` ✅
 - [x] `gnss_init.cpp`: `INTERFACEMODE SAVECONFIG` → `SAVECONFIG` ✅
 - [x] `gnss_init.cpp`: добавлены `INSCONTROL ENABLE` и `SET SMOOTHEDDR ON` для IMU
+      → **отменено в пункте 6** (на обычной K803 tilt compensation нет, DR не нужен)
 - [x] `config.h`: «Lite» убрано, пины обновлены под XIAO, SPP-секция удалена
 - [x] `platformio.ini`: убраны env `esp32dev_spp` и `esp32dev_ble`, только `xiao_esp32c6_ble`
 - [x] `README.md`: «K803 Lite» → «K803», добавлен IMU, убран DevKitC/SPP
@@ -106,3 +107,109 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 - [x] `README.md` — ссылка на дашборд: `hmd83.github.io/...` → относительный путь
       `web/rtk-monitor.html`
 - [x] `FLASHING.md` — пример `LOG VERSION`: `"K803Lite"` → `"K803"`
+
+---
+
+## 5. Tilt compensation — только как идея, под неё ничего не менять
+
+Проверено по ComNav OEM Board Reference Manual V3.1:
+
+- §4.6 Tilt Measurement (`insrtk rodlength`, `insrtk leverarmarp`, `insrtk leverarmgnss`,
+  `insrtk installangle`, `insrtk fastinit`, `insrtk init 1`) и логи §3.4.8
+  (`INSRTKCOMPENSATE` ID 2366 и др.) заявлены для другой платы.
+  На нашей K803 их **нет**.
+- `insrtk rodlength <mm>` — это ровно «длина вехи от острия до ARP», 0–20000 мм.
+  Но команда относится к другой плате, на нашей не появится.
+- ANTEX/модели фазового центра в прошивке приёмника нет вообще: `leverarmgnss` —
+  это постоянный механический вектор ±500 мм, а не калибровка антенны.
+
+Что остаётся на обычной K803: `LOG IMUDATAB` (ID 2264, сырые гир/акц, 100 Гц) —
+заявлен для K803. Магнитометра в приёмнике нет.
+
+### Почему не делаем
+
+Компенсация наклона: `tip = PC − L·(sinθ·cosα, sinθ·sinα, cosθ)`.
+
+- `θ` (наклон от вертикали) — из акселерометра, решается.
+- `α` (азимут плоскости наклона в ENU) — узкое место. Магнитометр рядом с
+  ground plane / ESP32 / батареей даёт 5–15° и нестабильную figure-8;
+  курс от `GPVTG` есть только в движении; честное решение — EKF GNSS+IMU,
+  это отдельный проект.
+
+Бюджет ошибки при L = 2 м: 0.3° → 1 см, 1° → 3.5 см, 3° → 10 см;
+без компенсации при 30° — 100 см. BNO085 по θ проходит, по α — на грани.
+
+### Что делать вместо этого (штатный режим)
+
+Держать веху вертикально и вводить точную длину в `Instrument Height` — SW Maps
+сама вычтет её и запишет точку на земле. IMU при этом не даёт ничего.
+
+### Если когда-нибудь возвращаться
+
+1. Внешний магнитометр (BNO055 / BMM150 / QMC5883L) вынести шлейфом на 10–15 см от платы.
+2. Комплементарный фильтр на ESP32-C6, источник θ — акселерометр.
+3. Результат — подмена GGA в прошивке (lat/lon/alt = остриё), `Instrument Height = 0`
+   в приложении; RTCM не трогать, RTK-фиксация не страдает.
+4. Сырые θ/α/статус — отдельным `$PTNL,TILT`, чтобы в логе было видно, что позиция
+   вычисленная, а не сырая.
+
+---
+
+## 6. Убрать INS/DR из загрузочной последовательности
+
+- [x] `gnss_init.cpp`: убраны `INSCONTROL ENABLE` и `SET SMOOTHEDDR ON`
+
+Причина: tilt compensation из V3.1 §4.6 на этой плате недоступна,
+а DR для ровера-вехи с остановками точности не добавляет. Включённый INS местами
+переводит GGA в quality `6` (GNSS/INS integrated) вместо честного `4` (RTK FIXED),
+и GIS-приложение принимает DR-позицию как валидную. Отменяет пункт §2
+«добавлены `INSCONTROL ENABLE` и `SET SMOOTHEDDR ON` для IMU».
+
+- [x] `COMMANDS.md`: §«IMU / Dead-reckoning» — сняты ✅ с `INSCONTROL ENABLE` и
+      `SET SMOOTHEDDR ON`, раздел переименован в «(not used)», добавлены `LOG IMUDATAB`,
+      объяснение «почему не на вехе» и оговорка, что tilt compensation — это §4.6 другой платы
+- [x] `HARDWARE.md`: переписан целиком — см. пункт 7
+- [x] `HARDWARE.md`: bench test, шаг 4 — ожидание «две строки REJECTED» убрано
+- [x] `README.md`: строка «an IMU (dead-reckoning)» убрана вместе с переписыванием «What it is»
+
+---
+
+## 7. Документация под отдельную OEM-плату K803
+
+Исходный проект описывал разборку купола ECOVACS GOAT. У нас **отдельная OEM-плата K803**
+(только K803, без QD-02 и без DC-DC модулей), питание то же (5 V/GND + TX/RX), антенна —
+внешняя **Beitian BT-800D**, корпус — печатный, пока не сделан.
+
+- [x] `HARDWARE.md` — переписан: удалены «What is inside the dome» и «Teardown»;
+      добавлены «The board» + «What the K803 does not do», «Connections», «Antenna»
+      (BT-800D: ARP=BAM, смещения фазового центра из реестра NGS, проверка питания LNA),
+      «Housing» (TBD, только требования)
+- [x] `README.md` — «What it is» про OEM-плату и Beitian BT-800D, таблица железа,
+      предупреждение про антенну, описание HARDWARE.md в таблице доков
+- [x] `COMMANDS.md` — убраны «mower», «QD-02 we dropped» и ссылки на источник, которого
+      нет в репозитории: `comnav.md` и «FW 7.4.6». Метка 🟡 заменена на 🔷/⚠️,
+      формат PPSCONTROL исправлен по V3.1 §2.2.15, `LOG SATVISA` заменён на
+      `LOG SATXYZA`, `LOG SYSCONFIG` помечен как отсутствующий в V3.1,
+      нумерация последовательности пересчитана (16 команд, ~12 с)
+- [x] `install/index.html` — шапка: без ECOVACS; «Disconnect the GNSS harness» → «receiver wiring»
+- [x] `FLASHING.md` — якоря на переименованные разделы HARDWARE.md, «harness» → «receiver wiring»,
+      время инициализации 15 с → 12 с
+- [x] `src/config.h` — комментарий про время инициализации (14 с → 12 с)
+- [x] Медиа: удалены `listings-secondhand.jpg`, `rover-field.jpeg`,
+      `teardown-board-harness.jpeg`, `pinout-k803-harness.jpeg` (последние два — фото платы
+      апстрима: K803**Lite** + QinNav QD-02 + LTD-D751S, к нашей плате не относятся).
+      Остались только скриншоты SW Maps.
+- [x] Проверены все ссылки и якоря между `.md` и `.html` — 0 битых
+
+### Осталось
+
+- [ ] Фото платы: `board-top.jpg`, `board-bottom.jpg`, `board-pinout.jpg` — плейсхолдеры в HARDWARE.md
+- [ ] Фото антенного порта и замер напряжения на центральном контакте: `antenna-port.jpg`,
+      `antenna-bias-voltage.jpg`
+- [x] Данные BT-800D взяты из реестра NGS, код `BEIBT800D`: диапазоны частот, ARP=BAM,
+      смещения фазового центра L1 = 0.6 / 1.2 / 73.7 мм (север / восток / вверх)
+- [ ] Раздел «Housing» — расписать после печати корпуса
+- [ ] `install/firmware/xiao-c6-ble.bin` — пересобрать после правки `gnss_init.cpp`
+      (сейчас там прошивка с `INSCONTROL ENABLE`), когда починится esptool в PlatformIO
+
+---

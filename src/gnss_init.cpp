@@ -3,9 +3,8 @@
 // needs a laptop before a survey.
 //
 // Command reference: ComNav OEM Board Reference Manual V3.1.
-// Commands marked with (V3.1) are confirmed in the manual.
-// Commands without it were verified on the K803 Lite and likely work on
-// the full board too, but are not documented in V3.1.
+// Commands marked with (V3.1) are confirmed in the manual. Commands without it
+// are not documented in V3.1 but are accepted by shipped units.
 
 #include <Arduino.h>
 #include <string.h>
@@ -34,10 +33,11 @@ static const char *const kCommands[] = {
     "SET APPSCENE Survey",           // (V3.1 2.2.24) rover survey mode — replaces RTKDYNAMICS
     "UNLOCKOUTALL",                  // (V3.1 2.2.28)
 
-    // IMU / DR - only available on full K803, not K803 Lite
-    // If the unit does not support these, they are silently rejected (not fatal).
-    "INSCONTROL ENABLE",             // (V3.1 2.2.23) enable INS navigation
-    "SET SMOOTHEDDR ON",             // (V3.1 4.5.4) enable dead-reckoning smoothing
+    // INS / dead-reckoning is deliberately NOT enabled. The K803 has an IMU but
+    // no tilt compensation, so DR adds no accuracy to a stop-and-go pole rover -
+    // and once INS is engaged the receiver starts reporting GGA quality 6
+    // (GNSS/INS integrated) instead of an honest 4 (RTK FIXED), which a GIS app
+    // accepts as a valid fix. See TODO item 5.
 
     "LOG " GNSS_CMD_PORT " GPGGA ONTIME 1",
     "LOG " GNSS_CMD_PORT " GPGST ONTIME 1",
@@ -56,7 +56,7 @@ static const char *const kCommands[] = {
 
 static char resp[1024];  // LOG VERSION can exceed 512 bytes on some firmwares
 
-// Check for "Error!" — the exact rejection prefix in ComNav FW 7.4.6.
+// Check for the rejection prefixes shipped receivers actually return.
 // Do NOT search for "ERROR" as a substring: it can appear in normal output
 // (e.g. "ERRORCODE 0") and would trigger a false REJECTED.
 static bool isRejected(const char *resp) {

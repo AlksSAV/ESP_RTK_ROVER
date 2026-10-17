@@ -1,112 +1,37 @@
-# HARDWARE.md — Teardown, Pinout & Wiring
+# HARDWARE.md — The Rover
 
-Everything needed to get a **ComNav SinoGNSS K803** out of an **ECOVACS GOAT RTK base
-station** and onto a **Seeed XIAO ESP32-C6**.
+A **ComNav SinoGNSS K803** OEM board, a **Seeed XIAO ESP32-C6**, a **Beitian BT-800D** antenna
+and a power bank. Four wires between the boards.
 
-> The photos in this file show a **K803 Lite** taken out of a GOAT base — that is the unit
-> that was dissected and photographed. The wiring, the command set and the firmware are the
-> same for the full **K803**; the differences are listed in
-> [The K803](#the-k803). **Silkscreen, connector position and pin order are not guaranteed to
-> match between revisions** — verify with a multimeter before connecting anything.
+> This is a bare **OEM receiver board**: the K803 module on a small PCB with power, UART and an
+> antenna connector broken out. Nothing to disassemble.
+>
+> **Silkscreen, connector position and pin order are not guaranteed between board revisions** —
+> verify with a multimeter before connecting anything. See [Connections](#connections).
 
-- [Before you start](#before-you-start)
-- [What is inside the dome](#what-is-inside-the-dome)
-- [Teardown](#teardown)
-- [The K803](#the-k803)
-- [Harness pinout](#harness-pinout)
+- [The board](#the-board)
+- [Connections](#connections)
 - [Wiring — XIAO ESP32-C6](#wiring--xiao-esp32-c6)
 - [Power](#power)
-- [PPS (optional)](#pps-optional)
 - [Antenna](#antenna)
-- [Reassembly and mounting](#reassembly-and-mounting)
-- [Bench test before you close it](#bench-test-before-you-close-it)
+- [Housing](#housing)
+- [PPS (optional)](#pps-optional)
+- [Bench test before you go out](#bench-test-before-you-go-out)
 - [Photo checklist](#photo-checklist)
 
 ---
 
-## Before you start
+## The board
 
-> ⚠️ Opening the base station **voids any remaining warranty** and permanently ends its
-> usefulness as a mower base. Buy a unit that is already surplus.
-
-- Everything here is **low voltage** (5 V from a USB supply). There is no mains circuitry
-  inside, and no battery to puncture in the base-station dome.
-- **Disconnect power before touching anything.**
-- The K803 is a static-sensitive OEM module on a carrier board. Ground yourself. Handle the
-  board by its edges.
-- Do not hot-plug the UART. Connect GND first, always.
-- Work over a tray. The mounting screws are small and the ground plane is heavy.
-
-**Tools:** PH1 and PH0 screwdrivers, a plastic spudger, a fine soldering iron (only if your
-board revision has no mating connector), a multimeter, and a USB-TTL adapter if you want to
-talk to the receiver from a PC first.
-
----
-
-## What is inside the dome
-
-| Part | What it does | Do we use it? |
-|---|---|---|
-| **SinoGNSS K803** OEM module | The GNSS + RTK engine (the full board also carries an IMU). This is the prize. | ✅ Everything |
-| **QinNav QD-02** module | The base station's own data link to the mower. **We drop it** — the phone link is Bluetooth LE instead. | ❌ Not used |
-| Carrier board | Power regulation, port breakout, status LED, button | ✅ As power + port breakout |
-| Patch antenna + machined ground plane | Multi-band antenna with a proper ground plane under it | ✅ Kept exactly as-is |
-| Weatherproof dome, gasket, pole mount | Housing, already IP-rated and pole-mountable | ✅ Reused as the rover housing |
-
-The ground plane and antenna are a real part of why this performs like a survey rover
-instead of like a phone GPS. Keep them together; do not "improve" the stack-up.
-
-<p align="center">
-  <img src="media/teardown-board-harness.jpeg" alt="Base station opened: carrier board on its ground plane, 4-wire harness routed to the lid" width="500"><br>
-  <sub>Opened unit. The 4-wire harness (yellow/blue/green/orange) leaves the carrier board's
-  white JST header and runs to the ESP32 mounted in the lid.</sub>
-</p>
-
----
-
-## Teardown
-
-1. **Unscrew the dome from the pole mount** and disconnect the original power cable.
-2. **Remove the base screws.** They sit around the underside rim, under the rubber feet on
-   some revisions. Keep them separated — lengths differ.
-3. **Lift the lid straight up, slowly.** A short twisted pair (red/black on the photographed
-   unit) runs from the carrier board to the lid. Do not yank it. Unplug it at the board if
-   you need the halves fully apart.
-4. **Note the gasket seat** before you disturb it. You need it later for weatherproofing.
-5. **Identify the boards.** The larger shielded can labelled `K803 GNSS Module` /
-   `SinoGNSS by ComNav Technology Ltd.` is the receiver. The second, smaller shielded module
-   (`QinNav QD-02`) is the base station's data link — we drop it entirely and use Bluetooth LE
-   instead, so leave it alone and unpowered.
-6. **Find the white JST header** on the carrier board next to the K803. This is COM1 plus
-   power, and it is where the whole project connects. See [Harness pinout](#harness-pinout).
-7. **Leave the receiver board bolted to the ground plane.** There is no reason to remove it,
-   and every reason not to disturb the antenna feed.
-
-> Board revisions vary between GOAT models (G1 / O800 / A1600) and production runs.
-> Silkscreen, connector position and pin order are **not guaranteed** to match the photos.
-> Verify with a multimeter before you connect anything — see below.
-
-> **Placeholder:** `media/teardown-01-screws.jpg` — underside with screw positions circled.
-> **Placeholder:** `media/teardown-02-lid-open.jpg` — lid lifted, internal cable visible.
-> **Placeholder:** `media/teardown-03-board-overview.jpg` — annotated board: K803, QD-02,
-> JST header, button, antenna feed.
-
----
-
-## The K803
-
-Markings on the photographed unit (a K803 Lite):
+`SinoGNSS by ComNav Technology Ltd.`, model **K803**. Read the label on your module and record
+it — it decides which features you actually have:
 
 ```
-SinoGNSS  by ComNav Technology Ltd.
-K803Lite GNSS Module
-PN: 2180300014
-SN: 01A009673059
+LOG VERSION          → model, firmware build, serial number, enabled authorizations
 ```
 
-Indicative capability, from ComNav's published material and the OEM Board Reference Manual
-V3.1. **Your unit's actual enabled feature set depends on its authorization** — confirm with
-`LOG VERSION` (see [COMMANDS.md](COMMANDS.md#log-version)):
+Capability, from ComNav's published material and the OEM Board Reference Manual V3.1. Your
+unit's actual feature set depends on its **authorization** — confirm with `LOG VERSION`:
 
 | | |
 |---|---|
@@ -118,35 +43,23 @@ V3.1. **Your unit's actual enabled feature set depends on its authorization** �
 | Time pulse | 1 PPS output |
 | Typical draw | 150–300 mA during acquisition — see [Power](#power) |
 
-### K803 vs K803 Lite
+### What the K803 does not do
 
-The full K803 adds an **onboard IMU**, which gives it two things the Lite cannot do:
+Two things people look for and will not find here:
 
-| | K803 Lite | K803 |
-|---|---|---|
-| RTK engine, constellations, RTCM 3.x input | ✅ | ✅ |
-| Command set and base→rover sequence | ✅ | ✅ |
-| Onboard IMU | ❌ | ✅ |
-| Dead reckoning through short blockage (`INSCONTROL`, `SET SMOOTHEDDR`) | ❌ | ✅ |
-| Tilt compensation (`insrtk` command group) | ❌ | ✅ |
-
-The firmware sends the IMU commands unconditionally. On a Lite they come back `REJECTED` in
-the boot log and are otherwise harmless — the rover works exactly as before.
-
-> **Enabling INS is not free.** Dead reckoning needs a **lever arm** (`SET DRLEVERARM x y z`,
-> millimetres from the antenna phase centre to the navigation centre) and a vehicle axis
-> convention (`SET IMUAXESTYPE`) before it produces meaningful output. Under those conditions
-> it is designed for a **moving platform** that has to keep reporting position through a
-> tunnel or under tree cover. On a **pole rover that stops to take a point**, it adds
-> convergence time and a new way to be quietly wrong without adding accuracy — a stopped
-> rover already has a clean sky. It is left enabled here because the commands are cheap and
-> the board has the hardware; comment the two lines out of `kCommands[]` in
-> [`src/gnss_init.cpp`](src/gnss_init.cpp) if you would rather not carry it.
-> See the manual's section 4.5 for the full INS bring-up procedure.
-
-Observed in the field on this build: RTK FIX with correction age around 1 s. The receiver's
-own precision estimates run to a few millimetres — treat them as a rough guide rather than a
-certified value.
+- **Tilt compensation.** The `insrtk` command group (`insrtk rodlength`, `insrtk leverarmarp`,
+  `insrtk leverarmgnss`, …) and the tilt logs of V3.1 §3.4.8 belong to a different board
+  variant; on the K803 they are rejected, and no authorization changes that. Keep the pole
+  vertical and enter its length as **Instrument Height** — the GIS app does the subtraction.
+- **Dead reckoning — we do not use it.** DR is built for a moving platform that must keep
+  reporting position through a tunnel or under tree cover. A pole rover that stops to take a
+  point already has a clean sky, so DR adds no accuracy — and once INS is engaged the receiver
+  starts reporting GGA quality `6` (GNSS/INS integrated) instead of an honest `4` (RTK FIXED),
+  which a GIS app accepts as a valid fix. `INSCONTROL` / `SET SMOOTHEDDR` are therefore **not**
+  in the boot sequence.
+- What the IMU does give you is raw data: `LOG IMUDATAB` (ID 2264, gyro + accelerometer,
+  100 Hz, supported on K803). See [TODO.md](TODO.md) item 5 for why building tilt compensation
+  on it is a separate project.
 
 > The COM ports are **3.3 V logic** and connect directly to an ESP32-C6 with no level shifter.
 > Do **not** feed 5 V into a COM pin. If you are unsure about your board revision, scope the
@@ -154,34 +67,30 @@ certified value.
 
 ---
 
-## Harness pinout
+## Connections
 
-Four wires on the white JST header next to the K803: **5 V, GND, GNSS TX, GNSS RX**.
+Four signals: **5 V, GND, GNSS TX, GNSS RX**.
 
-<p align="center">
-  <img src="media/pinout-k803-harness.jpeg" alt="Carrier board with 5V, GND, GNSS TX and GNSS RX called out on the white JST header" width="720">
-</p>
+| Signal | Direction (receiver's point of view) | Goes to |
+|---|---|---|
+| **5 V** | Power **in** | XIAO `5V`, or a separate 5 V supply |
+| **GND** | — | XIAO `GND` (**always connect, always first**) |
+| **GNSS TX** | **Out** — NMEA to you | XIAO **RX** pin (`D7`) |
+| **GNSS RX** | **In** — RTCM3 from you | XIAO **TX** pin (`D6`) |
 
-| Signal | Wire colour in the photo | Direction (receiver's point of view) | Goes to |
-|---|---|---|---|
-| **5 V** | orange | Power **in** | XIAO `5V`, or a separate 5 V supply |
-| **GND** | yellow | — | XIAO `GND` (**always connect, always first**) |
-| **GNSS TX** | blue | **Out** — NMEA to you | XIAO **RX** pin (`D7`) |
-| **GNSS RX** | green | **In** — RTCM3 from you | XIAO **TX** pin (`D6`) |
+Identify the pins on **your** board before powering anything:
 
-Wire colours are this build's convention, not a standard. Verify the pins on **your** board
-before powering anything:
-
-1. **GND** — continuity to the ground plane / mounting screws / USB shell.
+1. **GND** — continuity to the PCB ground, mounting holes, connector shells.
 2. **5 V** — with the original supply connected, measure 5 V ±5 % to GND. Disconnect again.
-3. **TX vs RX** — power the board from its original supply and probe each candidate pin with
-   a USB-TTL adapter at 115200 8N1. The one spitting text (`$GNGGA,…` or ComNav ASCII) is
-   the receiver's **TX**. The remaining one is **RX**.
-4. If the pins are unlabelled and you cannot identify RX, wire TX+GND first and confirm you
-   receive data. Then add RX and confirm the receiver answers `LOG VERSION`.
+3. **TX vs RX** — power the board and probe each candidate pin with a USB-TTL adapter at
+   115200 8N1. The one spitting text (`$GNGGA,…` or ComNav ASCII) is the receiver's **TX**.
+   The remaining one is **RX**.
+4. If the pins are unlabelled and you cannot identify RX: wire TX + GND first, confirm you
+   receive data, then add RX and confirm the receiver answers `LOG VERSION`.
 
-> **Placeholder:** `media/pinout-jst-closeup.jpg` — macro of the JST header with pin 1 marked.
-> **Placeholder:** `media/pinout-silkscreen.jpg` — silkscreen labels beside the header.
+> **Placeholder:** `media/board-top.jpg` — top side: K803 module, label, connector.
+> **Placeholder:** `media/board-bottom.jpg` — bottom side: power and UART test points.
+> **Placeholder:** `media/board-pinout.jpg` — the four signals called out on the board.
 
 ---
 
@@ -189,29 +98,27 @@ before powering anything:
 
 Build env `xiao_esp32c6_ble` (the only one). `UART1`, `PIN_GNSS_RX=17`, `PIN_GNSS_TX=16`.
 
-| K803 harness | XIAO pad | GPIO | Note |
+| K803 board | XIAO pad | GPIO | Note |
 |---|---|---|---|
-| GNSS **TX** (blue) | **D7** | GPIO17 | ESP32 RX ← receiver TX |
-| GNSS **RX** (green) | **D6** | GPIO16 | ESP32 TX → receiver RX |
-| **GND** (yellow) | **GND** | — | Mandatory common ground |
-| **5 V** (orange) | **5V** | — | VBUS passthrough from USB-C. Read [Power](#power). |
+| GNSS **TX** | **D7** | GPIO17 | ESP32 RX ← receiver TX |
+| GNSS **RX** | **D6** | GPIO16 | ESP32 TX → receiver RX |
+| **GND** | **GND** | — | Mandatory common ground |
+| **5 V** | **5V** | — | VBUS passthrough from USB-C. Read [Power](#power). |
 
 ```
- ECOVACS GOAT base station                     Seeed XIAO ESP32-C6
- ┌───────────────────────────────┐             ┌───────────────────┐
- │  K803       COM1              │             │                   │
- │   TX  ●───────── blue ────────┼─────────────┤ D7 (GPIO17)  RX   │
- │   RX  ●───────── green ───────┼─────────────┤ D6 (GPIO16)  TX   │
- │  GND  ●───────── yellow ──────┼─────────────┤ GND               │
- │  5 V  ●───────── orange ──────┼─────────────┤ 5V (VBUS)         │
- │                               │             │                   │
- │  patch antenna + groundplane  │             │  USB-C ───────────┼──▶ power bank
- └───────────────────────────────┘             └───────────────────┘
+ K803 OEM board                              Seeed XIAO ESP32-C6
+ ┌───────────────────────┐                   ┌───────────────────┐
+ │  K803        COM1     │                   │                   │
+ │   TX  ●─────── blue ──┼───────────────────┤ D7 (GPIO17)  RX   │
+ │   RX  ●─────── green ─┼───────────────────┤ D6 (GPIO16)  TX   │
+ │  GND  ●─────── yellow ┼───────────────────┤ GND               │
+ │  5 V  ●─────── orange ┼───────────────────┤ 5V (VBUS)         │
+ │                       │                   │                   │
+ │  ANT ●── U.FL/SMA ────┼──▶ Beitian BT-800D │  USB-C ───────────┼──▶ power bank
+ └───────────────────────┘    on the pole    └───────────────────┘
 ```
 
-The photographed build mounts the XIAO **inside the dome lid** and runs a single USB-C cable
-out through the existing cable gland to a power bank. That is the whole rover: one dome, one
-cable, one battery.
+TX and RX cross over. If you get no data, swap those two first.
 
 Notes specific to the C6:
 
@@ -220,9 +127,10 @@ Notes specific to the C6:
 - `ARDUINO_USB_CDC_ON_BOOT=1`: the console is the native USB port. It only enumerates once
   the host is attached, so the firmware waits up to 1.5 s at boot before logging.
 - The onboard user LED is **active-low**; the build sets `LED_ACTIVE_LOW=1`.
-- The XIAO ESP32-C6 has an RF switch for its internal/external antenna. The firmware does
-  not touch it, so the board's default applies. If BLE range disappoints inside a sealed
-  dome, that switch and an external antenna are the first thing to look at.
+- **BLE and the GNSS antenna are two different radios.** The XIAO has an RF switch for its
+  own antenna, which the firmware does not touch, so the board default applies. If BLE range
+  disappoints inside a printed box, that switch and the box's position relative to the GNSS
+  antenna's ground plane are the first things to look at.
 
 ---
 
@@ -233,8 +141,9 @@ Notes specific to the C6:
 ### The numbers
 
 - K803: **150–300 mA** during acquisition, more at cold start.
+- Active antenna (LNA): typically 15–50 mA — check your antenna's datasheet.
 - ESP32-C6 with BLE TX peaks: tens of mA in short bursts — much gentler than a Classic radio.
-- A thin USB cable and a tired power bank still cannot serve both reliably.
+- A thin USB cable and a tired power bank still cannot serve all of it reliably.
 
 ### The failure mode
 
@@ -262,7 +171,7 @@ for hours. It is not a firmware bug.
 
 | Setup | Verdict |
 |---|---|
-| Power bank → XIAO USB-C → XIAO `5V` pin → receiver | ✅ The photographed build. Power bank sources amps happily; the XIAO's 5 V pin is straight VBUS, not a regulator output. |
+| Power bank → XIAO USB-C → XIAO `5V` pin → receiver | ✅ Simplest. Power bank sources amps happily; the XIAO's 5 V pin is straight VBUS, not a regulator output. |
 | Separate 5 V supply → receiver; USB → XIAO; **GND tied together** | ✅ Most robust. Do this on the bench. |
 | XIAO `3V3` pin → receiver | ❌ Through the onboard regulator, and the receiver wants 5 V anyway. Do not. |
 | Power supplies not sharing a ground | ❌ No common reference; UART will not work, and you can damage pins. |
@@ -272,6 +181,98 @@ for hours. It is not a firmware bug.
 Add one wire at a time: **GND** → **VCC** → **data lines**. Whichever step first triggers the
 loop names the culprit. If it loops with GND + VCC and **no data wires attached**, it is
 definitively power.
+
+---
+
+## Antenna
+
+An **external antenna** on the board's antenna port: a **Beitian BT-800D** — a full-frequency
+RTK mushroom antenna, active (built-in LNA), with published phase-centre calibration.
+
+| | |
+|---|---|
+| GNSS code (NGS) | `BEIBT800D` |
+| Bands | GPS L1/L2/L5 · BDS B1/B2/B3/B1C/B2a/B2b · GLONASS L1/L2/L3 · Galileo E1/E5a/E5b/E6 · SBAS · QZSS |
+| Type | Active — LNA inside, needs DC on the centre pin |
+| ARP definition | **BAM** — Bottom of the Antenna Mount |
+| Reference direction | RXC→North (the RF connector points north) |
+| Phase centre offset (L1) | north **0.6 mm** · east **1.2 mm** · up **73.7 mm** |
+
+The last two rows are the useful ones.
+
+**ARP:BAM means measure to the bottom of the antenna mount**, not to the top of the radome or
+the middle of the body. That is exactly the point a pole tape measure reaches, so
+**Instrument Height** in the GIS app = ground to the bottom of the mount, and nothing else to
+add. The 73.7 mm vertical phase-centre offset is a constant you cannot avoid and should not
+try to correct by hand — it shifts every height the same way, so relative heights and
+differences are unaffected.
+
+RXC→North is an orientation reference for the calibration table, not a requirement to aim the
+antenna north. The phase centre is stable to a couple of millimetres either way.
+
+### Does the board feed the antenna?
+
+The BT-800D is active, so it needs supply voltage on the centre pin. V3.1 documents no
+antenna-power command, so measure instead of assuming:
+
+1. Power the board, antenna connector empty.
+2. Multimeter, DC volts, between the **centre pin** of the antenna connector and **GND**
+   (connector shell / PCB ground).
+3. Record it.
+
+| Reading | Meaning | What to do |
+|---|---|---|
+| 0 V | The board does not power an LNA | Feed the antenna through an inline bias-tee off the same 5 V |
+| 3.3 V / 5 V | Bias is present | Check it is within the antenna's rated supply before connecting |
+
+Then confirm the LNA is actually alive: with the antenna connected and the board running,
+`LOG COM1 GPGSV ONTIME 1` should show plausible SNR. A starved or dead LNA still lists
+satellites — with **zero or near-zero SNR**, because the receiver sees the antenna's noise,
+not the sky.
+
+> **Placeholder:** `media/antenna-port.jpg` — the antenna connector on the board.
+> **Placeholder:** `media/antenna-bias-voltage.jpg` — multimeter reading on the centre pin.
+
+### Mounting
+
+An RTK antenna is not a WiFi antenna: what matters is the sky above it and the metal below it.
+
+- **Ground plane.** A patch antenna wants one, and its performance figures are quoted *over*
+  a specific ground plane. Honour whatever the antenna's drawing specifies — a metal disc or
+  the pole itself helps; a plastic bracket does nothing.
+- **Cable.** Keep it as short as practical; every metre of cheap coax at L-band is real loss
+  in front of the LNA, and a long unterminated lead is also an antenna. Route it so it does
+  not drape across the sky above the patch.
+- **Measure to the BAM.** Consistently, every setup.
+- **Open sky.** Under a tree or against a wall you get FLOAT, not FIX.
+- **Away from reflectors.** Metal roofs, cars and wet surfaces cause multipath.
+- **Let it settle.** Cold start to RTK FIX in open sky is typically 30–60 s.
+
+> **Placeholder:** `media/antenna-on-pole.jpg` — antenna mounted on the pole, cable routed.
+
+---
+
+## Housing
+
+**TBD — printed enclosure.** Not designed yet, so this section is a placeholder on purpose;
+nothing here has been measured.
+
+What the box has to do, in order of importance:
+
+1. **Keep the antenna's ground plane intact** and keep the antenna above everything else in
+   the box. Do not put the ESP32, the battery or the USB cable between the antenna and the sky.
+2. **Keep the two radios apart.** The GNSS antenna and the XIAO's BLE antenna should be as far
+   apart as the box allows, with the battery not between them.
+3. **Strain-relieve the antenna cable and the USB cable.** Neither connector should ever take
+   a tug directly.
+4. **Insulate the boards.** Kapton tape or printed trays. No board may rest against the
+   antenna feed or a ground plane.
+5. **Weather.** If the box goes on a pole outdoors, it needs a drain, not a seal — a sealed
+   box in the sun pumps moist air in and out through the cable glands.
+
+> **Placeholder:** `media/housing-print.jpg` — printed parts before assembly.
+> **Placeholder:** `media/housing-open.jpg` — assembled box, boards and battery visible.
+> **Placeholder:** `media/housing-on-pole.jpg` — finished rover on the pole with the antenna.
 
 ---
 
@@ -287,53 +288,15 @@ triggering, sensor fusion, an NTP server):
 |---|---|---|---|
 | PPS | 3.3 V logic, ~1 Hz pulse | any free GPIO with interrupt capability | Keep the lead short; it is a timing reference |
 
-You will need to locate the PPS pad on your carrier board revision — it is not part of the
-4-wire harness above. Attach a scope or a logic analyser and look for the 1 Hz pulse once
-the receiver has a position fix; PPS is typically not asserted before then.
+You will need to locate the PPS pad on your board revision — it is not part of the four
+signals in [Connections](#connections). Attach a scope or a logic analyser and look for the
+1 Hz pulse once the receiver has a position fix; PPS is typically not asserted before then.
 
-> **Placeholder:** `media/pps-pad.jpg` — PPS test point identified on the carrier board.
-
----
-
-## Antenna
-
-Leave the antenna stack alone. The dome contains a multi-band patch over a machined metal
-ground plane, at the spacing its designer chose — this is a big part of the multipath
-rejection you get for free with the board.
-
-> ⚠️ **It is not a characterised antenna.** There is no ANTEX calibration for it, so the
-> offset between the electrical phase centre and any physical point you measure to is unknown
-> — systematic, mostly in height, and invisible in the receiver's own σ estimates.
-> Measuring to a consistent point and orienting the dome the same way every setup at least
-> makes that offset constant.
-
-Practical siting matters more than any modification:
-
-- **Open sky.** Under a tree or against a wall you get FLOAT, not FIX.
-- **Away from reflectors.** Metal roofs, cars and wet surfaces cause multipath.
-- **On a pole, not on the ground.** The dome has a standard mount; use it.
-- **Let it settle.** Cold start to RTK FIX in open sky is typically 30–60 s.
+> **Placeholder:** `media/pps-pad.jpg` — PPS test point identified on the board.
 
 ---
 
-## Reassembly and mounting
-
-1. **Strain-relieve the USB cable** at the gland. The cable will get tugged; the XIAO's USB-C
-   connector should never be what takes the load.
-2. **Insulate the ESP32.** Kapton tape or a printed tray. Do not let the board rest against
-   the ground plane or the antenna feed.
-3. **Keep the RF path clear.** Do not route the harness or the ESP32 directly over the patch
-   antenna.
-4. **Reseat the gasket** and check that the lid closes without pinching wires.
-5. **Test outdoors before you seal it.** See below.
-
-> **Placeholder:** `media/assembly-esp-in-lid.jpg` — XIAO mounted in the lid with strain
-> relief.
-> **Placeholder:** `media/assembly-closed.jpg` — closed unit on the pole with the USB tail.
-
----
-
-## Bench test before you close it
+## Bench test before you go out
 
 1. Connect **GND only**, then power the receiver from its own supply. Confirm no boot loop.
 2. Flash the firmware ([FLASHING.md](FLASHING.md)) and open the serial monitor at 115200.
@@ -349,10 +312,12 @@ Practical siting matters more than any modification:
    ```
 
 4. Add the **ESP TX → receiver RX** wire and reboot. Commands should now be accepted; watch
-   for `REJECTED` lines (see [COMMANDS.md](COMMANDS.md)). On a board without an IMU, expect
-   exactly the two `INSCONTROL` / `SET SMOOTHEDDR` lines to be rejected — everything else
-   should answer `OK`.
-5. Take it outside. Within a minute the `[STAT]` line should show real uplink traffic:
+   for `REJECTED` lines (see [COMMANDS.md](COMMANDS.md)). Nothing in the shipped sequence is
+   IMU-related any more, so **no line should be rejected on a plain K803**. A rejection on
+   `INTERFACEMODE COM1 AUTO AUTO ON` is the one to take seriously — see
+   [COMMANDS.md → Interface mode](COMMANDS.md#interface-mode-and-differential-input).
+5. Connect the antenna and take it outside. Within a minute the `[STAT]` line should show real
+   traffic:
 
    ```
    [STAT] BLE linked  up 512 B/s (25600)  down 0 B/s (0)
@@ -360,26 +325,27 @@ Practical siting matters more than any modification:
 
 6. Connect a phone, start an NTRIP client, and confirm `down` goes above 0 and the fix
    reaches **RTK FIX**.
-7. *Then* close the dome.
+7. Check GSV SNR values once you have a fix — that is how you notice a starved LNA before it
+   costs you a day of survey.
 
 ---
 
 ## Photo checklist
 
-Photos worth capturing while it is open — drop them in `media/` and the placeholders above
-become real:
+Photos worth capturing — drop them in `media/` and the placeholders above become real:
 
 | File | Shot |
 |---|---|
-| `teardown-01-screws.jpg` | Underside, screw positions |
-| `teardown-02-lid-open.jpg` | Lid lifted, internal cable |
-| `teardown-03-board-overview.jpg` | Annotated board: K803, QD-02, JST, button, antenna feed |
-| `pinout-jst-closeup.jpg` | JST header macro, pin 1 marked |
-| `pinout-silkscreen.jpg` | Silkscreen labels beside the header |
+| `board-top.jpg` | Top of the OEM board: K803, label, connectors |
+| `board-bottom.jpg` | Bottom: power and UART test points |
+| `board-pinout.jpg` | The four signals called out on the board |
+| `antenna-port.jpg` | Antenna connector on the board |
+| `antenna-bias-voltage.jpg` | Multimeter reading on the antenna centre pin |
+| `antenna-on-pole.jpg` | Beitian BT-800D on the pole, cable routed |
 | `wiring-xiao.jpg` | XIAO wired up, wire colours visible |
-| `pps-pad.jpg` | PPS test point |
-| `assembly-esp-in-lid.jpg` | ESP32 mounted and strain-relieved |
-| `assembly-closed.jpg` | Finished unit on a pole |
+| `housing-print.jpg` | Printed parts |
+| `housing-open.jpg` | Assembled box, boards and battery visible |
+| `housing-on-pole.jpg` | Finished rover on the pole |
 | `dashboard.png` | Web dashboard with a live RTK fix |
 
 ---

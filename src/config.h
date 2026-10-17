@@ -42,7 +42,7 @@
 #define GNSS_CMD_PORT "COM1"
 
 // Per-command settle time. The whole sequence costs roughly
-// 2 s + (commands x this), so ~14 s of boot before the bridge comes up.
+// 2 s + (commands x this), so ~12 s of boot before the bridge comes up.
 #define GNSS_CMD_WAIT_MS 600
 
 // ---------------------------------------------------------------------------

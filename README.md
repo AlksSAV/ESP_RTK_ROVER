@@ -14,14 +14,12 @@
 
 ## What it is
 
-ECOVACS GOAT lawnmowers ship with an RTK base station — the black dome you screw onto a pole.
-People sell them second-hand when they change mowers.
+A **ComNav SinoGNSS K803** OEM board: a multi-frequency GNSS receiver with a real RTK engine,
+the size of a stamp, sold as a component for survey equipment.
 
-Inside is a **SinoGNSS K803** by ComNav: a multi-frequency GNSS board with a real RTK engine,
-an IMU (dead-reckoning), a patch antenna and a machined ground plane.
-
-This project wires that board to a **Seeed Studio XIAO ESP32C6** and turns the dome into a
-BLE RTK rover that any mobile GIS app can talk to.
+This project wires it to a **Seeed Studio XIAO ESP32C6** and an external
+**Beitian BT-800D** antenna, and turns the combination into a BLE RTK rover that any mobile GIS
+app can talk to.
 
 ```
   phone  (NTRIP client + GIS app)
@@ -29,12 +27,12 @@ BLE RTK rover that any mobile GIS app can talk to.
     │   Bluetooth LE
   XIAO ESP32C6
     │   UART 115200
-  ComNav K803  ──  patch antenna + ground plane
+  ComNav K803  ──  external antenna on the pole
 ```
 
 The firmware:
 
-- **reconfigures the K803 from base station to rover on every boot** — no laptop before a survey
+- **puts the K803 into a known rover configuration on every boot** — no laptop before a survey
 - **passes bytes both ways, transparently** — NMEA up, RTCM3 corrections down
 - **speaks BLE** (Nordic UART Service, works on iOS and Android)
 - **ships a browser dashboard** for live diagnostics
@@ -45,8 +43,10 @@ The firmware:
 
 Read this before using it for anything that matters.
 
-- **No calibration.** The antenna has no phase-centre calibration. Heights carry an unknown
-  constant offset, probably a few centimetres.
+- **No calibration of your own.** The BT-800D has published phase-centre figures, but the
+  receiver does not apply them: heights carry a constant offset (the antenna's own phase
+  centre plus whatever is between the mount and the ground). It is the same offset on every
+  point, so relative work is fine and absolute height is not verified.
 - **No certification.** No type approval, no conformity assessment, no traceability to a
   national standard.
 - **No integrity monitoring.** Commercial receivers add interference detection, multipath
@@ -66,28 +66,32 @@ Use at your own risk.
 
 | Item |
 |---|
-| ECOVACS GOAT RTK base station (second-hand) |
+| ComNav SinoGNSS **K803** OEM board |
 | [Seeed Studio XIAO ESP32C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html) |
+| **Beitian BT-800D** antenna, on the pole above the electronics |
 | USB power bank, wire, heat-shrink |
 
-<p align="center">
-  <img src="media/pinout-k803-harness.jpeg" alt="K803 carrier board with 5V, GND, GNSS TX and GNSS RX called out" width="560">
-</p>
+Four wires between the receiver and the ESP32:
 
-| K803 harness | XIAO ESP32C6 | Note |
+| K803 board | XIAO ESP32C6 | Note |
 |---|---|---|
-| **GNSS TX** (blue) | `D7` / GPIO17 | ESP32 RX ← receiver TX |
-| **GNSS RX** (green) | `D6` / GPIO16 | ESP32 TX → receiver RX |
-| **GND** (yellow) | `GND` | Mandatory common ground |
-| **5 V** (orange) | `5V` | VBUS passthrough from USB-C |
+| **GNSS TX** | `D7` / GPIO17 | ESP32 RX ← receiver TX |
+| **GNSS RX** | `D6` / GPIO16 | ESP32 TX → receiver RX |
+| **GND** | `GND` | Mandatory common ground |
+| **5 V** | `5V` | VBUS passthrough from USB-C |
 
 TX and RX cross over. If you get no data, swap those two first.
 
-> ⚠️ **Power the receiver properly.** It pulls 150–300 mA. Feeding it from a 3.3 V regulator
-> causes boot loops that look like corrupted firmware.
+> ⚠️ **Power the receiver properly.** It pulls 150–300 mA, plus the antenna's LNA. Feeding it
+> from a 3.3 V regulator causes boot loops that look like corrupted firmware.
 > See [HARDWARE.md → Power](HARDWARE.md#power).
 
-Full teardown, pinouts and assembly: **[HARDWARE.md](HARDWARE.md)**
+> ⚠️ **You own the antenna now.** With an OEM board and a separate antenna there is no
+> designer hiding your mistakes: check the antenna's frequency coverage, whether it is active
+> and what voltage its LNA wants, and give it a real ground plane.
+> See [HARDWARE.md → Antenna](HARDWARE.md#antenna).
+
+Pinout, power, antenna and housing: **[HARDWARE.md](HARDWARE.md)**
 
 ---
 
@@ -149,7 +153,7 @@ browser.
 
 | | |
 |---|---|
-| **[HARDWARE.md](HARDWARE.md)** | Teardown, pinout, wiring, power, antenna, assembly |
+| **[HARDWARE.md](HARDWARE.md)** | The board, pinout, wiring, power, external antenna, housing |
 | **[COMMANDS.md](COMMANDS.md)** | The ComNav K803 command set — base → rover, NMEA rates, recovery |
 | **[FLASHING.md](FLASHING.md)** | Web flashing, PlatformIO, esptool, troubleshooting |
 
