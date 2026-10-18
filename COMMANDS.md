@@ -557,15 +557,29 @@ the receiver.
 All of it lives in one array in [`src/gnss_init.cpp`](src/gnss_init.cpp):
 
 ```c
-static const char *const kCommands[] = {
-    "UNLOGALL " GNSS_CMD_PORT,
+struct Cmd {
+  const char *text;
+  bool expectReply;
+  uint8_t maxRetries;
+};
+
+static const Cmd kCommands[] = {
+    {"UNLOGALL " GNSS_CMD_PORT, true, 2},
     ...
-    "LOG " GNSS_CMD_PORT " GPGGA ONTIME 1",
+    {"LOG " GNSS_CMD_PORT " GPGGA ONTIME 1", true, 1},
     ...
-    "INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON",   // LAST
-    "SAVECONFIG",
+    {"INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON", false, 1},   // LAST
+    {"SAVECONFIG", false, 1},
 };
 ```
+
+Each entry carries three fields:
+
+| Field | Meaning |
+|---|---|
+| `text` | The ASCII command string (concatenated with `GNSS_CMD_PORT` at compile time) |
+| `expectReply` | `true` — silence counts as a failure; `false` — silence is normal |
+| `maxRetries` | **Total attempts.** `1` = send once. `2` = resend once if the first attempt stayed silent — used on `UNLOGALL COM1` and `SET APPSCENE Survey`, where the receiver can be mid-log and miss a command. Never raise it above `255` and never set `0`: an entry with `0` would be skipped and silently counted as a no-reply |
 
 Rules:
 
@@ -581,7 +595,9 @@ Rules:
 
 Timing: the sequence costs `2 s + (n × GNSS_CMD_WAIT_MS)`. Lowering `GNSS_CMD_WAIT_MS` speeds
 up boot at the cost of possibly reading a reply too early — 600 ms is a comfortable margin,
-300 ms usually works.
+300 ms usually works. Commands that go silent are retried, which adds a few seconds per
+silenced command. Three silenced commands is treated as a dead link (`NO REPLY`), not a
+soft warning.
 
 ---
 
@@ -665,6 +681,12 @@ link is fine and only those commands are unsupported.
 - **No reply.** If `LOG VERSION` gets no answer, the entire sequence aborts after ~2 s
   (instead of wasting ~12 s on dead commands). The boot log says `init NO REPLY` and
   `[STAT]` shows `GNSS NO REPLY` until the receiver is wired correctly.
+- **Silence is retried, rejection is not.** A command that answers nothing is re-sent (up to
+  `maxRetries` times) — a receiver that was mid-log can miss one. A command answered
+  `Invalid` is never retried: the reply proves the UART is alive and the command is genuinely
+  unsupported. Once three commands stay silent, the init reports `NO REPLY` rather than `WARN`
+  — everything after the point where the link went quiet was never configured, so the unit
+  would stream NMEA and never produce an RTK fix.
 - **Don't save a baud change** unless you also change `GNSS_BAUD` and reflash.
 - **Talker IDs vary.** `$GPGGA` vs `$GNGGA` is normal, and neither breaks anything.
 - **Board revisions vary.** The boot sequence was confirmed upstream on a different board, and

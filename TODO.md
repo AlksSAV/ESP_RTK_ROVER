@@ -289,3 +289,72 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 
 ---
 
+## 10. Отказоустойчивость: task watchdog + ретраи инициализации
+
+Замечание: зависший `loop()` или замолчавший GNSS-модуль не приводили ни к чему,
+что пользователь заметил бы в поле.
+
+### 10.1 Программный watchdog (esp_task_wdt)
+
+Проверено по sdkconfig C6: `CONFIG_ESP_TASK_WDT_INIT=y`, 5 с, `PANIC=y`
+(panic → `PRINT_REBOOT`, т.е. перезагрузка есть), **но**:
+- `CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0` не задан;
+- Arduino-core создаёт `loopTask` с `loopTaskWDTEnabled = false`
+  (`cores/esp32/main.cpp:111`), а `feedLoopWDT()`/`enableLoopWDT()` ядро
+  в `loop()` не вызывает.
+
+Итог: до этого изменения `loop()` под надзором TWDT **не был** — зависание
+не детектировалось вообще.
+
+- [x] `config.h`: `USE_TASK_WDT` (1), `TASK_WDT_TIMEOUT_MS` (5000)
+- [x] `main.cpp`: `watchdogInit()` — `esp_task_wdt_reconfigure()` +
+      `esp_task_wdt_add(NULL)` для подписки `loopTask`
+- [x] подписка — в конце `setup()`, **после** `gnssInit()`: инициализация K803
+      блокирует на ~12 с и иначе триггерила бы watchdog
+- [x] `main.cpp`: `watchdogFeed()` (`esp_task_wdt_reset()`) в начале `loop()`
+- [x] `main.cpp`: `esp_reset_reason() == ESP_RST_TASK_WDT` → строка
+      `[SYS] previous run ended by watchdog reset (loop() hung)` — без неё
+      перезагрузку от WDT в поле не отличить от обычной
+- [x] idle task **не** подписываем: при потоке NMEA `loop()` почти каждый проход
+      выходит без yield, idle выглядел бы голодным в штатном режиме
+
+Проверено: `pio run` → SUCCESS, RAM 7.5 %, Flash 51.3 %.
+
+### 10.2 Ретраи команд инициализации и порог «приёмник мёртв»
+
+- [x] `gnss_init.cpp`: поле `maxRetries` в `struct Cmd`; повтор только по
+      `REPLY_NONE` — ответ `Invalid` доказывает, что UART жив, ретраить бессмысленно
+- [x] `maxRetries=2` у `UNLOGALL <port>` и `SET APPSCENE Survey`, у остальных 1;
+      при `expectReply=false` ретраев нет (молчание — норма)
+- [x] `config.h`: `GNSS_INIT_NO_REPLY_THRESHOLD` (3)
+- [x] `gnss_init.cpp`: `noReply >= 3` → `GNSS_INIT_NO_REPLY` (было: любая
+      молчаливая команда только повышала счётчик, итог оставался `OK`/`WARN`)
+- [x] LED: критический случай остаётся **тройной** вспышкой (`LED_PATTERN_NO_REPLY`),
+      а не «быстрым миганием» из замечания — быстрый паттерн (600 мс) уже занят
+      под `WAITING` (ждём телефон), два разных состояния стали бы неотличимы
+- [x] `main.cpp` не менялся: `NO_REPLY` уже даёт тройную вспышку,
+      `[SYS] ... init NO REPLY` и постоянный суффикс `[STAT] ... GNSS NO REPLY`
+
+Все команды последовательности идемпотентны (`LOG ... ONTIME 1` перезаписывает
+настройку, `UNLOGALL`/`FIX NONE`/`UNLOCKOUTALL` — сброс), повтор безопасен.
+
+### Не сделано сознательно
+
+- **Нет** отдельного состояния «частично молчит» кроме `NO_REPLY`: три молчаливые
+  команды означают, что всё после них не настроено, это именно мёртвая линия.
+- **Не** подписываем BLE host-задачу NimBLE: `NimBLEDevice` не отдаёт её
+  `TaskHandle_t`, а подписка из её же колбэка меняла бы семантику стека.
+  Зависание BLE накрётся watchdog'ом `loop()` — `linkWrite()` вызывается из него.
+
+### Осталось
+
+- [x] `install/firmware/xiao-c6-ble.bin` — пересобран из `firmware.factory.bin`
+      (сигнатура `0xE9`, `INSCONTROL`/`SMOOTHEDDR` отсутствуют)
+- [x] `FLASHING.md` — пример boot-лога после WDT-перезагрузки, строки в таблицу чтения
+      и в Troubleshooting, абзац про ретраи и порог 3
+- [x] `COMMANDS.md` — `kCommands[]` показан как `struct Cmd` с `maxRetries`, таблица полей,
+      Gotchas: «Silence is retried, rejection is not»
+
+
+---
+

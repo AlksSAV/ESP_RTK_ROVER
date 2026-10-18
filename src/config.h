@@ -45,6 +45,14 @@
 // 2 s + (commands x this), so ~12 s of boot before the bridge comes up.
 #define GNSS_CMD_WAIT_MS 600
 
+// Commands that stay silent after all their retries are counted; once that
+// count reaches this threshold the receiver is treated as dead (NO_REPLY)
+// rather than merely unhappy (WARN). Below the threshold a silenced command
+// is logged but the bridge still starts normally.
+#ifndef GNSS_INIT_NO_REPLY_THRESHOLD
+#define GNSS_INIT_NO_REPLY_THRESHOLD 3
+#endif
+
 // ---------------------------------------------------------------------------
 // Phone link name (BLE advertisement)
 // ---------------------------------------------------------------------------
@@ -90,6 +98,28 @@
 #endif
 #ifndef PIN_PPS
 #define PIN_PPS 2  // GPIO2 / D2 / A2 - interrupt-capable pin on XIAO ESP32-C6
+#endif
+
+// ---------------------------------------------------------------------------
+// Task watchdog
+// ---------------------------------------------------------------------------
+// The core leaves loopTask unsubscribed from the task watchdog, so a loop()
+// that stops returning - stuck in a BLE call, spinning on a dead UART - leaves
+// the rover streaming nothing and giving no sign of life. With the watchdog on,
+// that becomes a reboot and a working bridge within a few seconds, which is the
+// right outcome for a unit left on a pole.
+//
+// Only loopTask is subscribed. The idle task is deliberately NOT: while NMEA is
+// streaming, loop() returns without yielding on almost every pass, so idle
+// would look starved during completely normal operation.
+//
+// Subscribed at the end of setup(), not the start: receiver init blocks for
+// ~12 s in setup() and would trip the watchdog mid-init.
+#ifndef USE_TASK_WDT
+#define USE_TASK_WDT 1
+#endif
+#ifndef TASK_WDT_TIMEOUT_MS
+#define TASK_WDT_TIMEOUT_MS 5000
 #endif
 
 // ---------------------------------------------------------------------------

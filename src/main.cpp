@@ -8,6 +8,8 @@
 // or BLE depending on the build env - see link.h.
 
 #include <Arduino.h>
+#include <esp_task_wdt.h>
+#include <esp_system.h>
 
 #include "config.h"
 #include "gnss_init.h"
@@ -173,6 +175,36 @@ static uint32_t ppsSnapshot() { return 0; }
 #endif
 
 // ---------------------------------------------------------------------------
+// Task watchdog - protects loop() from BLE/UART hangs
+// ---------------------------------------------------------------------------
+#if USE_TASK_WDT
+static void watchdogInit() {
+  // Reconfigure the TWDT: enable loopTask monitoring, keep panic→reboot.
+  esp_task_wdt_config_t cfg = {
+      .timeout_ms = TASK_WDT_TIMEOUT_MS,
+      .idle_core_mask = 0,        // do NOT watch idle task (normal during NMEA streaming)
+      .trigger_panic = true       // matches CONFIG_TASK_WDT_PANIC
+  };
+  esp_task_wdt_reconfigure(&cfg);
+
+  // Subscribe loopTask explicitly.
+  // Arduino core creates the task with WDT disabled (loopTaskWDTEnabled=false)
+  // because setup() blocks ~12 s on receiver init and would trip the timer.
+  if (esp_task_wdt_add(NULL) != ESP_OK) {
+    DBG("[SYS] WDT subscribe failed - loop() is unprotected\n");
+  } else {
+    DBG("[SYS] watchdog %u ms\n", TASK_WDT_TIMEOUT_MS);
+  }
+}
+static void watchdogFeed() {
+  esp_task_wdt_reset();
+}
+#else
+static void watchdogInit() {}
+static void watchdogFeed() {}
+#endif
+
+// ---------------------------------------------------------------------------
 #if DEBUG_USB
 static void printStats() {
   static uint32_t last = 0;
@@ -228,6 +260,11 @@ void setup() {
   GnssSerial.setTxBufferSize(UART_TX_BUF);
   GnssSerial.begin(GNSS_BAUD, SERIAL_8N1, PIN_GNSS_RX, PIN_GNSS_TX);
 
+  // A WDT reset is the one fault a field user cannot see after the fact: the
+  // board comes back looking healthy. Say what rebooted it, once, at boot.
+  if (esp_reset_reason() == ESP_RST_TASK_WDT)
+    DBG("\n[SYS] previous run ended by watchdog reset (loop() hung)\n");
+
   // Before the link, not after: the receiver echoes its replies, and a phone
   // that connected early would otherwise be fed the whole command transcript.
   gnssStatus = gnssInit(GnssSerial);
@@ -245,6 +282,10 @@ void setup() {
 
   linkBegin();
 
+  // Subscribe loopTask to TWDT after init completes (init blocks ~12 s and
+  // would trip the watchdog).  Must happen before the loop starts.
+  watchdogInit();
+
   DBG("\n[SYS] %s via %s - UART%d @ %d (RX=GPIO%d, TX=GPIO%d)",
       linkDeviceName(), linkName(), GNSS_UART_NUM, GNSS_BAUD, PIN_GNSS_RX,
       PIN_GNSS_TX);
@@ -258,6 +299,11 @@ void setup() {
 }
 
 void loop() {
+  // Feed the task watchdog before we reach for the BLE/UART calls.
+  // If loop() hangs on a BLE notify() or a dead UART, the TWDT will
+  // force a reboot so the rover comes back on its own.
+  watchdogFeed();
+
   bool busy = pumpUplink();
   busy |= pumpDownlink();
 

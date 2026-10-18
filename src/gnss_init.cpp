@@ -28,23 +28,31 @@ enum Reply : uint8_t { REPLY_NONE, REPLY_OK, REPLY_REJECTED };
 // cannot pollute the no-reply count: the escape hatch is a no-op on a cold
 // receiver, the COM2/COM3 unlogs only target legacy boards, and the last two
 // run after the port has already left ASCII parsing.
+//
+// maxRetries — how many times to retry a command that returns no reply.
+// Commands that answer "Invalid" are not retried (the receiver is alive and
+// the command is genuinely unsupported), so REJECTED never triggers a retry.
 struct Cmd {
   const char *text;
   bool expectReply;
+  uint8_t maxRetries;
 };
 
 // Order matters. INTERFACEMODE ... AUTO AUTO ON is the point of no return: it
 // puts the port into RTCM auto-detect, after which it no longer parses ASCII,
 // so every LOG and every setting has to be in place before it.
+//
+// maxRetries=2 on commands that may need a brief settle time (e.g. UNLOGALL
+// clears a log before the next command lands). Most commands get one shot.
 static const Cmd kCommands[] = {
-    {"UNLOGALL " GNSS_CMD_PORT, true},  // (V3.1 2.2.31)
-    {"UNLOGALL COM2", false},           // (V3.1 2.2.31) - for legacy boards wired to COM2
-    {"UNLOGALL COM3", false},           // (V3.1 2.2.31) - for legacy boards wired to COM3
+    {"UNLOGALL " GNSS_CMD_PORT, true, 2},  // (V3.1 2.2.31)
+    {"UNLOGALL COM2", false, 1},           // (V3.1 2.2.31) - for legacy boards wired to COM2
+    {"UNLOGALL COM3", false, 1},           // (V3.1 2.2.31) - for legacy boards wired to COM3
 
-    {"FIX NONE", true},  // clear a leftover base coordinate (V3.1 2.2.6 has FIX position,
-                         // FIX NONE may not be documented but works on shipped units)
-    {"SET APPSCENE Survey", true},  // (V3.1 2.2.24) rover survey mode — replaces RTKDYNAMICS
-    {"UNLOCKOUTALL", true},         // (V3.1 2.2.28)
+    {"FIX NONE", true, 1},  // clear a leftover base coordinate (V3.1 2.2.6 has FIX position,
+                            // FIX NONE may not be documented but works on shipped units)
+    {"SET APPSCENE Survey", true, 2},  // (V3.1 2.2.24) rover survey mode — replaces RTKDYNAMICS
+    {"UNLOCKOUTALL", true, 1},         // (V3.1 2.2.28)
 
     // INS / dead-reckoning is deliberately NOT enabled. The K803 has an IMU but
     // no tilt compensation, so DR adds no accuracy to a stop-and-go pole rover -
@@ -52,27 +60,27 @@ static const Cmd kCommands[] = {
     // (GNSS/INS integrated) instead of an honest 4 (RTK FIXED), which a GIS app
     // accepts as a valid fix. See TODO item 5.
 
-    {"LOG " GNSS_CMD_PORT " GPGGA ONTIME 1", true},
-    {"LOG " GNSS_CMD_PORT " GPGST ONTIME 1", true},
-    {"LOG " GNSS_CMD_PORT " GPGSA ONTIME 1", true},
-    {"LOG " GNSS_CMD_PORT " GPGSV ONTIME 1", true},
-    {"LOG " GNSS_CMD_PORT " GPRMC ONTIME 1", true},
-    {"LOG " GNSS_CMD_PORT " GPVTG ONTIME 1", true},
-    {"LOG " GNSS_CMD_PORT " GPZDA ONTIME 1", true},
+    {"LOG " GNSS_CMD_PORT " GPGGA ONTIME 1", true, 1},
+    {"LOG " GNSS_CMD_PORT " GPGST ONTIME 1", true, 1},
+    {"LOG " GNSS_CMD_PORT " GPGSA ONTIME 1", true, 1},
+    {"LOG " GNSS_CMD_PORT " GPGSV ONTIME 1", true, 1},
+    {"LOG " GNSS_CMD_PORT " GPRMC ONTIME 1", true, 1},
+    {"LOG " GNSS_CMD_PORT " GPVTG ONTIME 1", true, 1},
+    {"LOG " GNSS_CMD_PORT " GPZDA ONTIME 1", true, 1},
 
-    {"LOG COMCONFIG", true},  // verify BEFORE the port goes into diff mode
+    {"LOG COMCONFIG", true, 1},  // verify BEFORE the port goes into diff mode
 
 #if USE_PPS
     // (V3.1 2.2.15) 1 Hz pulse, positive polarity, 1000 ms width - the pin is
     // read on the ESP32 side (main.cpp), the receiver only has to emit it.
     // A unit without PPS support answers Invalid; that lands in the WARN count
     // on purpose, so the missing time reference is visible at boot.
-    {"PPSCONTROL ENABLE POSITIVE 1 1000 1", true},
+    {"PPSCONTROL ENABLE POSITIVE 1 1000 1", true, 1},
 #endif
 
     // LAST - after this the port no longer takes commands
-    {"INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON", false},  // (V3.1 2.2.10)
-    {"SAVECONFIG", false},  // (V3.1 2.2.22) persist config
+    {"INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON", false, 1},  // (V3.1 2.2.10)
+    {"SAVECONFIG", false, 1},  // (V3.1 2.2.22) persist config
 };
 
 static char resp[1024];  // LOG VERSION can exceed 512 bytes on some firmwares
@@ -141,24 +149,46 @@ GnssInitStatus gnssInit(HardwareSerial &ser) {
   }
 
   for (size_t i = 0; i < sizeof(kCommands) / sizeof(kCommands[0]); ++i) {
-    Reply r = sendCmd(ser, kCommands[i].text, GNSS_CMD_WAIT_MS);
+    const Cmd &cmd = kCommands[i];
+
+    // Only silence is retried. A command answered "Invalid" proves the UART is
+    // alive - the receiver parses ASCII but does not support this command, so
+    // repeating it only costs another settle window. Commands that are not
+    // expected to answer get exactly one attempt, silence being their norm.
+    Reply r = REPLY_NONE;
+    for (uint8_t sent = 0; sent < cmd.maxRetries; ++sent) {
+      r = sendCmd(ser, cmd.text, GNSS_CMD_WAIT_MS);
+      if (r != REPLY_NONE || !cmd.expectReply) break;
+    }
+
     if (r == REPLY_REJECTED) ++st.rejected;
-    else if (r == REPLY_NONE && kCommands[i].expectReply) ++st.noReply;
+    else if (r == REPLY_NONE && cmd.expectReply) ++st.noReply;
   }
 
   while (ser.available()) ser.read();  // drop the echo tail before bridging
 
-  // Rejected commands are the silent failure mode: NMEA still streams, a GIS
-  // app still plots a point, but a refused FIX NONE leaves the unit in base
-  // mode and RTK never fixes. Worth more than a line in a boot log nobody reads
-  // while standing in a field, hence the counters reaching all the way to main.
-  if (st.rejected) {
+  // Three silenced commands after all retries is not a flaky answer, it is a
+  // link that died mid-sequence (receiver brownout, loose TX line). Everything
+  // after the point where it went quiet is unconfigured, so this is reported as
+  // NO_REPLY rather than a soft WARN: a half-configured unit still streams
+  // NMEA and still plots a point, but RTK never fixes.
+  if (st.noReply >= GNSS_INIT_NO_REPLY_THRESHOLD) {
+    st.result = GNSS_INIT_NO_REPLY;
+    DBG("[GNSS] NO REPLY - %u command(s) unanswered, receiver link is dead\n",
+        st.noReply);
+  } else if (st.rejected) {
+    // Rejected commands are the silent failure mode: NMEA still streams, a GIS
+    // app still plots a point, but a refused FIX NONE leaves the unit in base
+    // mode and RTK never fixes. Worth more than a line in a boot log nobody
+    // reads while standing in a field, hence the counters reaching all the way
+    // to main.
     st.result = GNSS_INIT_WARN;
     DBG("[GNSS] init done with %u REJECTED command(s)\n", st.rejected);
   } else {
     DBG("[GNSS] init done - %s is in RTCM auto-detect mode\n", GNSS_CMD_PORT);
   }
-  if (st.noReply) DBG("[GNSS] %u command(s) got no reply\n", st.noReply);
+  if (st.noReply && st.result != GNSS_INIT_NO_REPLY)
+    DBG("[GNSS] %u command(s) got no reply\n", st.noReply);
 
   return st;
 }

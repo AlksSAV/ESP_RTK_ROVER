@@ -164,6 +164,7 @@ USB re-enumerates.
 [<] $command,INTERFACEMODE COM1 AUTO AUTO ON,response: OK*…
 [GNSS] init done - COM1 is in RTCM auto-detect mode
 [BLE] advertising as "ESP32-RTK-4AAE" (xx:xx:xx:xx:4a:ae)
+[SYS] watchdog 5000 ms
 [SYS] ESP32-RTK-4AAE via BLE - UART1 @ 115200 (RX=GPIO17, TX=GPIO16)
 [STAT] BLE waiting  up 0 B/s (0)  down 0 B/s (0)
 ```
@@ -179,6 +180,7 @@ USB re-enumerates.
 …
 [GNSS] init done with 1 REJECTED command(s)
 [BLE] advertising as "ESP32-RTK-4AAE" (xx:xx:xx:xx:4a:ae)
+[SYS] watchdog 5000 ms
 [SYS] ESP32-RTK-4AAE via BLE - UART1 @ 115200 (RX=GPIO17, TX=GPIO16) - init WARN (rejected=1, noReply=0)
 [STAT] BLE waiting  up 0 B/s (0)  down 0 B/s (0)  GNSS WARN rejected=1
 ```
@@ -193,9 +195,29 @@ USB re-enumerates.
 [<] (no response)
 [GNSS] NO REPLY - receiver not answering, init aborted
 [BLE] advertising as "ESP32-RTK-4AAE" (xx:xx:xx:xx:4a:ae)
+[SYS] watchdog 5000 ms
 [SYS] ESP32-RTK-4AAE via BLE - UART1 @ 115200 (RX=GPIO17, TX=GPIO16) - init NO REPLY (receiver not answering)
 [STAT] BLE waiting  up 0 B/s (0)  down 0 B/s (0)  GNSS NO REPLY
 ```
+
+### Watchdog reset (previous run hung)
+
+If the board reboots on its own after sitting in the field, it likely hit the task
+watchdog — a 5-second timer that forces a restart when `loop()` stops returning.
+
+```
+[SYS] previous run ended by watchdog reset (loop() hung)
+[GNSS] K803 rover init on COM1
+…
+[GNSS] init done - COM1 is in RTCM auto-detect mode
+[BLE] advertising as "ESP32-RTK-4AAE" (xx:xx:xx:xx:4a:ae)
+[SYS] watchdog 5000 ms
+[SYS] ESP32-RTK-4AAE via BLE - UART1 @ 115200 (RX=GPIO17, TX=GPIO16)
+[STAT] BLE linked  up 512 B/s (12345)  down 240 B/s (6789)
+```
+
+This is the correct recovery: the board comes back online without any human intervention.
+Check the boot log for `GNSS NO REPLY` or `WARN` if the receiver is still not responding.
 
 **Reading it:**
 
@@ -206,14 +228,22 @@ USB re-enumerates.
 | `^^ REJECTED: …` | Link is fine, that specific command is unsupported. [COMMANDS.md](COMMANDS.md) |
 | `[SYS] … - init WARN` | One or more commands were rejected — the receiver may still be in base mode. Check which command. |
 | `[SYS] … - init NO REPLY` | Nothing answered on the UART. Check wiring, power, baud. |
+| `[SYS] watchdog …` | Task watchdog is active and protecting `loop()` |
+| `[SYS] previous run ended by watchdog reset` | `loop()` hung last time; the TWDT forced a reboot |
 | `[STAT] …  GNSS WARN rejected=N` | Persistent warning visible every stats cycle |
 | `[STAT] …  GNSS NO REPLY` | Persistent warning — receiver not communicating |
 | `[STAT] … up 512 B/s` | Receiver is streaming **and** a phone is linked |
 | `[STAT] … down 240 B/s` | RTCM corrections are reaching the receiver |
 
 The whole init takes about **12 seconds** before Bluetooth comes up. That is expected — 16
-commands at 600 ms each, plus a 2 s preamble. If the receiver does not answer `LOG VERSION`,
-the sequence aborts early and the bridge comes up after ~2 s instead.
+commands at 600 ms each, plus a 2 s preamble. Commands that get no answer are retried (up to
+three attempts for `UNLOGALL COM1` and `SET APPSCENE Survey`), so a receiver that answers
+slowly can push this higher. If the receiver does not answer `LOG VERSION`, the sequence
+aborts early and the bridge comes up after ~2 s instead.
+
+Three silenced commands are treated as a dead link, not as bad luck: the result is reported
+as `init NO REPLY` rather than `WARN`, because everything after the point where the receiver
+went quiet never got configured.
 
 > The init sequence runs before the link starts on purpose: the receiver echoes its replies,
 > and a phone that connected early would otherwise be fed the entire command transcript as if
@@ -319,6 +349,8 @@ Bump `version` in the manifest on every release so returning users are offered t
 | `[<] (no response)` on every init line | GNSS not connected, wrong baud, TX/RX swapped | [HARDWARE.md](HARDWARE.md#connections) |
 | `[SYS] init NO REPLY` | No answer from the receiver on any command | Same as above — check wiring, power, baud |
 | `[SYS] init WARN` / `[STAT] GNSS WARN` | Some commands rejected — receiver may be in wrong mode | Check which command was rejected in the boot log |
+| `[GNSS] NO REPLY - N command(s) unanswered` (not the early abort) | The link died **mid-sequence**: replies stopped after some commands landed | A half-configured unit streams NMEA but never fixes. Reseat the UART connector, check the receiver's power under load |
+| Board reboots by itself in the field | `loop()` hung; the task watchdog forced a restart | Look for `previous run ended by watchdog reset` at the next boot. A one-off is recovered; repeated ones point to a power or BLE-range problem |
 | Board fine on USB, dies when the GNSS is plugged in | Shared power rail | Separate supply, share only GND |
 
 **Bisecting a hardware problem:** flash and verify the board **standalone** first. Only then
