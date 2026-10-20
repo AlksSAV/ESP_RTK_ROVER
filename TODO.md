@@ -205,7 +205,7 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 
 ### Осталось
 
-- [ ] Фото платы: `board-top.jpg`, `board-bottom.jpg`, `board-pinout.jpg` — плейсхолдеры в HARDWARE.md
+- [x] Фото платы: `board-top.jpg` ✅ в репозитории; `board-bottom.jpg`, `board-pinout.jpg` — плейсхолдеры в HARDWARE.md
 - [x] Фото антенны: `media/antenna-bt800d.jpg` — BT-800D, коннектор на кабеле — **TNC**
       (уточнено, добавлено в таблицу антенны HARDWARE.md)
 - [ ] Замер напряжения на центральном контакте: `antenna-bias-voltage.jpg` — отложено,

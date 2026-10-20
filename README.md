@@ -35,6 +35,8 @@ The firmware:
 - **puts the K803 into a known rover configuration on every boot** — no laptop before a survey
 - **passes bytes both ways, transparently** — NMEA up, RTCM3 corrections down
 - **speaks BLE** (Nordic UART Service, works on iOS and Android)
+- **can also broadcast a Wi-Fi AP** with a WebSocket that serves the same dashboard in any
+  browser (Safari on iPhone included)
 - **ships a browser dashboard** for live diagnostics
 
 ---
@@ -142,10 +144,20 @@ Any NTRIP caster serving RTCM 3.x works.
 
 **[Open the dashboard →](web/rtk-monitor.html)**
 
-One self-contained HTML file. Connects to the rover over Web Bluetooth in Chrome or Edge and
-decodes the stream live: fix quality, position, σ values, DOPs, correction age, and a raw NMEA
-log with checksum errors highlighted. Nothing is uploaded anywhere — your position stays in your
-browser.
+Two ways to get data:
+
+1. **BLE (Web Bluetooth).** Chrome or Edge on desktop or Android. Connect to `ESP32-RTK-XXXX`
+   and the dashboard auto-pairs via GATT.
+2. **Wi-Fi AP.** The rover creates a hotspot `ESP32-RTK` (password `12345678`). Connect to it,
+   open `http://192.168.4.1/` — the rover serves the dashboard itself. Works in **any browser**,
+   including Safari on iPhone and Chrome on Android.
+
+> **iOS Safari limitation:** Web Bluetooth is not implemented in Safari (or any iOS browser,
+> because Apple requires all browsers to use WebKit). The Wi-Fi AP method works on iPhone.
+
+One self-contained HTML file. Decodes the stream live: fix quality, position, σ values, DOPs,
+correction age, and a raw NMEA log with checksum errors highlighted. Nothing is uploaded
+anywhere — your position stays in your browser.
 
 ---
 

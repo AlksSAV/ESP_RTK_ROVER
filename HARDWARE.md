@@ -88,7 +88,8 @@ Identify the pins on **your** board before powering anything:
 4. If the pins are unlabelled and you cannot identify RX: wire TX + GND first, confirm you
    receive data, then add RX and confirm the receiver answers `LOG VERSION`.
 
-> **Placeholder:** `media/board-top.jpg` — top side: K803 module, label, connector.
+![K803 module on carrier board](media/board-top.jpg)
+
 > **Placeholder:** `media/board-bottom.jpg` — bottom side: power and UART test points.
 > **Placeholder:** `media/board-pinout.jpg` — the four signals called out on the board.
 
@@ -343,7 +344,7 @@ Photos worth capturing — drop them in `media/` and the placeholders above beco
 
 | File | Shot |
 |---|---|
-| `board-top.jpg` | Top of the OEM board: K803, label, connectors |
+| `board-top.jpg` | K803 module on the carrier board, top side — ✅ in repo |
 | `board-bottom.jpg` | Bottom: power and UART test points |
 | `board-pinout.jpg` | The four signals called out on the board |
 | `antenna-port.jpg` | Antenna connector on the board |

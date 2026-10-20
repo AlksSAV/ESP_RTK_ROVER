@@ -1,19 +1,19 @@
 // ESP_RTK_ROVER - transparent phone <-> UART bridge for an RTK GNSS receiver.
 //
-//   GNSS TX --> RX pin --> UART --> Bluetooth --> phone   (NMEA / UBX)
-//   GNSS RX <-- TX pin <-- UART <-- Bluetooth <-- phone   (RTCM3 corrections)
+//   GNSS TX --> RX pin --> UART --> BLE / Wi-Fi --> client   (NMEA)
+//   GNSS RX <-- TX pin <-- UART <-- BLE / Wi-Fi <-- client   (RTCM3 corrections)
 //
 // Byte-transparent: never parses, reframes or waits for line endings, so binary
-// RTCM3 and UBX pass through intact. The Bluetooth side is either Classic SPP
-// or BLE depending on the build env - see link.h.
+// RTCM3 passes through intact. Both transports run at once and the uplink is
+// duplicated to each - see bridge.h.
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 
+#include "bridge.h"
 #include "config.h"
 #include "gnss_init.h"
-#include "link.h"
 
 static HardwareSerial GnssSerial(GNSS_UART_NUM);
 
@@ -61,14 +61,14 @@ static LedPattern curPattern = LED_PATTERN_WAITING;
 
 static void ledSetPattern(LedPattern p) { curPattern = p; }
 
-// WAITING/LINKED follow the phone; an init-failure pattern is latched and
+// WAITING/LINKED follow the clients; an init-failure pattern is latched and
 // survives both connecting and disconnecting - the fault does not go away
-// because a phone showed up.
+// because a client showed up.
 static void ledTask() {
   const uint32_t t = millis();
   LedPattern p = curPattern;
   if (p == LED_PATTERN_LINKED || p == LED_PATTERN_WAITING)
-    p = linkReady() ? LED_PATTERN_LINKED : LED_PATTERN_WAITING;
+    p = bridgeReady() ? LED_PATTERN_LINKED : LED_PATTERN_WAITING;
 
   const bool blinkOn =
       (p == LED_PATTERN_LINKED && (t % 2000) < 60) ||
@@ -86,7 +86,7 @@ static void ledTask() {}
 #endif
 
 // ---------------------------------------------------------------------------
-// Uplink: GNSS -> phone
+// Uplink: GNSS -> clients
 // ---------------------------------------------------------------------------
 static bool pumpUplink() {
   static uint8_t buf[BRIDGE_CHUNK];
@@ -94,8 +94,8 @@ static bool pumpUplink() {
   static uint32_t lastByte = 0;
 
   // Nobody listening: drain the UART anyway so it never overflows and resumes
-  // mid-sentence when a phone does connect.
-  if (!linkReady()) {
+  // mid-sentence when a client does connect.
+  if (!bridgeReady()) {
     bool had = false;
     while (GnssSerial.available()) {
       GnssSerial.read();
@@ -105,7 +105,7 @@ static bool pumpUplink() {
     return had;
   }
 
-  size_t limit = linkMaxChunk();
+  size_t limit = bridgeMaxChunk();
   if (limit > sizeof(buf)) limit = sizeof(buf);
 
   while (GnssSerial.available() && len < limit) {
@@ -119,7 +119,7 @@ static bool pumpUplink() {
   // the burst is still arriving.
   if (len < limit && (millis() - lastByte) < UPLINK_FLUSH_MS) return true;
 
-  if (linkWrite(buf, len)) {
+  if (bridgeWrite(buf, len)) {
     bytesToPhone += len;
     len = 0;
   } else {
@@ -129,7 +129,7 @@ static bool pumpUplink() {
 }
 
 // ---------------------------------------------------------------------------
-// Downlink: phone -> GNSS
+// Downlink: clients -> GNSS
 // ---------------------------------------------------------------------------
 static bool pumpDownlink() {
   uint8_t buf[BRIDGE_CHUNK];
@@ -138,7 +138,7 @@ static bool pumpDownlink() {
   if (room == 0) return false;  // let the UART drain, come back next loop
   if (room > sizeof(buf)) room = sizeof(buf);
 
-  size_t n = linkRead(buf, room);
+  size_t n = bridgeRead(buf, room);
   if (n == 0) return false;
 
   GnssSerial.write(buf, n);
@@ -220,7 +220,7 @@ static void printStats() {
   last = now;
 
   Serial.printf("[STAT] %s %s  up %.0f B/s (%lu)  down %.0f B/s (%lu)",
-                linkName(), linkReady() ? "linked" : "waiting",
+                bridgeName(), bridgeReady() ? "linked" : "waiting",
                 (bytesToPhone - upPrev) / secs, (unsigned long)bytesToPhone,
                 (bytesToGnss - downPrev) / secs, (unsigned long)bytesToGnss);
 
@@ -280,15 +280,15 @@ void setup() {
                     : (gnssStatus.result == GNSS_INIT_WARN ? LED_PATTERN_WARN
                                                            : LED_PATTERN_WAITING));
 
-  linkBegin();
+  bridgeBegin();
 
   // Subscribe loopTask to TWDT after init completes (init blocks ~12 s and
   // would trip the watchdog).  Must happen before the loop starts.
   watchdogInit();
 
   DBG("\n[SYS] %s via %s - UART%d @ %d (RX=GPIO%d, TX=GPIO%d)",
-      linkDeviceName(), linkName(), GNSS_UART_NUM, GNSS_BAUD, PIN_GNSS_RX,
-      PIN_GNSS_TX);
+      linkDeviceName(), bridgeTransports(), GNSS_UART_NUM, GNSS_BAUD,
+      PIN_GNSS_RX, PIN_GNSS_TX);
   if (gnssStatus.result == GNSS_INIT_WARN)
     DBG(" - init WARN (rejected=%u, noReply=%u)\n", gnssStatus.rejected,
         gnssStatus.noReply);
@@ -306,6 +306,10 @@ void loop() {
 
   bool busy = pumpUplink();
   busy |= pumpDownlink();
+
+  // Pump the HTTP / WebSocket state machines. Cheap with no clients and
+  // never blocking - handleClient() yields rather than waiting.
+  bridgeFeed();
 
   ledTask();
 #if DEBUG_USB

@@ -156,16 +156,19 @@
 <div class="wrap">
 
   <header>
-    <h1>ESP32-RTK Monitor <small>NMEA over BLE</small></h1>
+    <h1>ESP32-RTK Monitor <small>NMEA over BLE / Wi-Fi</small></h1>
     <div class="spacer"></div>
     <span class="pill"><span class="dot" id="dot"></span><span id="status">Not connected</span></span>
     <button class="primary" id="btnConnect">Connect</button>
   </header>
 
   <div class="note" id="unsupported" hidden>
-    This browser has no Web Bluetooth. Use <b>Chrome</b> or <b>Edge</b> on desktop or Android
-    (Safari and Firefox do not implement it), and open this file from disk or over
-    <code>https://</code> — Web Bluetooth needs a secure context.
+    Two ways to get data:
+    <b>1)</b> <b>Chrome</b> or <b>Edge</b> on desktop or Android — Web Bluetooth;
+    <b>2)</b> connect to the rover's Wi-Fi AP <b>ESP32-RTK</b>
+    (password <code>12345678</code>), open <code>http://192.168.4.1/</code> —
+    the dashboard is served by the rover itself and works in any browser,
+    including Safari on iPhone.
   </div>
 
   <div class="fix" id="fixBanner">
@@ -546,9 +549,82 @@ function onDisconnected() {
   $('btnConnect').textContent = 'Connect';
 }
 
+// --------------------------------------------------------------------------
+// WebSocket - the Wi-Fi AP transport
+// --------------------------------------------------------------------------
+// When the page is served by the rover itself (http://192.168.4.1/) Web
+// Bluetooth is neither needed nor available, so NMEA arrives as binary WS
+// frames instead. Only the origin of the bytes differs, so both paths feed
+// the same line splitter.
+let ws = null;
+let wsWanted = false;   // "the user wants Wi-Fi" - survives a dropped link
+let wsRetry = null;
+
+const wsUrl = `ws://${location.hostname || '192.168.4.1'}:81`;
+
+function feedBytes(chunk, byteLen) {
+  S.bytes += byteLen;
+  S.rateBytes += byteLen;
+  partial += chunk;
+  let i;
+  while ((i = partial.indexOf('\n')) >= 0) {
+    const line = partial.slice(0, i).trim();
+    partial = partial.slice(i + 1);
+    if (line.startsWith('$') || line.startsWith('!')) handleSentence(line);
+  }
+  if (partial.length > 2048) partial = '';
+}
+
+function onWsMessage(ev) {
+  if (typeof ev.data === 'string') feedBytes(ev.data, ev.data.length);
+  else {
+    const buf = new Uint8Array(ev.data);
+    feedBytes(decoder.decode(buf, { stream: true }), buf.byteLength);
+  }
+}
+
+function connectWs() {
+  if (ws) return;
+  wsWanted = true;
+  clearTimeout(wsRetry);
+  setStatus('Wi-Fi…');
+  ws = new WebSocket(wsUrl);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => {
+    S.lines.length = 0;
+    $('log').textContent = '';
+    setStatus('Wi-Fi', 'live');
+    $('btnConnect').textContent = 'Disconnect';
+  };
+  ws.onmessage = onWsMessage;
+  ws.onerror = () => setStatus('Wi-Fi error', 'err');
+  ws.onclose = () => {
+    ws = null;
+    partial = '';
+    $('btnConnect').textContent = 'Connect';
+    if (!wsWanted) { setStatus('Not connected'); return; }
+    // A phone drops the socket the moment the page goes to the background,
+    // which happens constantly; reconnect on its own rather than making the
+    // user tap again every time.
+    setStatus('Wi-Fi lost, retrying…', 'err');
+    wsRetry = setTimeout(connectWs, 2000);
+  };
+}
+
+function disconnectWs() {
+  wsWanted = false;
+  clearTimeout(wsRetry);
+  if (ws) ws.close();
+  ws = null;
+}
+
 $('btnConnect').addEventListener('click', () => {
-  if (device && device.gatt.connected) device.gatt.disconnect();
-  else connect();
+  if (device && device.gatt.connected) { device.gatt.disconnect(); return; }
+  if (ws) { disconnectWs(); setStatus('Not connected'); return; }
+  // Over https:// or localhost with Web Bluetooth available, offer BLE;
+  // otherwise Wi-Fi is the only transport that can work here.
+  if (navigator.bluetooth && !location.hostname.startsWith('192.168.4.')) connect();
+  else connectWs();
 });
 
 $('btnPause').addEventListener('click', e => {
@@ -571,10 +647,18 @@ $('btnCopy').addEventListener('click', async e => {
 setInterval(render, 200);
 setInterval(() => { S.rate = S.rateBytes; S.rateBytes = 0; }, 1000);
 
-if (!navigator.bluetooth) {
+// --------------------------------------------------------------------------
+// Auto-detect: if served by the rover itself, use WebSocket.
+// --------------------------------------------------------------------------
+const onRoverWifi = location.hostname.startsWith('192.168.4.');
+
+if (onRoverWifi) {
+  $('unsupported').hidden = true;
+  connectWs();
+} else if (!navigator.bluetooth) {
   $('unsupported').hidden = false;
   $('btnConnect').disabled = true;
-  setStatus('Web Bluetooth unavailable', 'err');
+  setStatus('No transport available', 'err');
 }
 </script>
 </body>

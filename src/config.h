@@ -123,6 +123,33 @@
 #endif
 
 // ---------------------------------------------------------------------------
+// Wi-Fi AP + WebSocket (optional)
+// ---------------------------------------------------------------------------
+// Enable to broadcast NMEA over a Wi-Fi access point in addition to BLE.
+// The ESP32-C6 can run BLE and Wi-Fi simultaneously — they share the RF
+// front-end but use different time slots, so the UART pipe is not affected.
+//
+// When enabled, a WebSocket server listens on WEBSOCKET_PORT and mirrors
+// every NMEA byte that arrives on the uplink. rtk-monitor.html detects
+// the transport and switches between BLE (Web Bluetooth) and WebSocket.
+//
+// iOS Safari supports WebSockets but drops them when the page goes to the
+// background — the browser kills all background tasks. Android Chrome works
+// better because it keeps WebSocket open more reliably.
+#ifndef USE_WIFI_AP
+#define USE_WIFI_AP 1
+#endif
+#ifndef WIFI_AP_SSID
+#define WIFI_AP_SSID "ESP32-RTK"
+#endif
+#ifndef WIFI_AP_PASS
+#define WIFI_AP_PASS "12345678"
+#endif
+#ifndef WEBSOCKET_PORT
+#define WEBSOCKET_PORT 81
+#endif
+
+// ---------------------------------------------------------------------------
 // Debug / LED
 // ---------------------------------------------------------------------------
 #define DEBUG_USB 1  // stats + link state on the USB console (UART0)
