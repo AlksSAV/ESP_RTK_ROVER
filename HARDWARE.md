@@ -320,7 +320,7 @@ From the bench session on this board (BT-800D, then a replacement antenna, pigta
 | `SET AE` 100M / OFF / 25M, 20 s each | 0 satellites every time | AE is not the cause |
 | `ECUTOFF 0` + `BD2ECUTOFF 0`, 5 min | 0 satellites | The mask is not the cause |
 | Spectrum, with and without antenna | flat both ways | Expected — signals are sub-noise. Proves nothing |
-| Whole `kCommands[]` replayed | 17/17 accepted | Receiver and firmware sequence are fine |
+| Whole `kCommands[]` replayed | 17/17 accepted | Receiver and firmware sequence are fine. Re-run `python tools/replay_boot.py <port>` after `RTKSOURCE` was added — the table is 18 commands now |
 
 Everything the electronics can answer for came back clean while satellites stayed at zero — and
 every measurement was taken indoors. That combination points at the sky, not at the hardware.

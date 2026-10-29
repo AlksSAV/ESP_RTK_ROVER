@@ -39,9 +39,11 @@ firmware, plus the ASCII command set from OEM Board Reference Manual **V3.1**.
 
 > **Verified on hardware.** The boot sequence and the commands marked ✅ below were replayed
 > against this project's K803 (model `S32352K803`, FW **7.4.6**, build 2025/Dec/30) over
-> COM13 at 115200 8N1. All 17 commands were accepted — `rejected=0, silent=0` — and the
-> resulting configuration survived a cold power cycle. See [TODO.md](TODO.md) item 11 for the
-> full bench log, including the antenna fault that was found along the way.
+> COM13 at 115200 8N1. All 17 commands then in `kCommands[]` were accepted —
+> `rejected=0, silent=0` — and the resulting configuration survived a cold power cycle.
+> `RTKSOURCE RTCMV3 ANY` (now #9) was confirmed accepted separately, see
+> [TODO.md](TODO.md) item 12.4. See [TODO.md](TODO.md) item 11 for the full bench log,
+> including the antenna fault that was found along the way.
 
 Command availability still varies with firmware build and **authorization**. A command your
 unit does not support is rejected, not silently ignored — check the reply.
@@ -127,7 +129,7 @@ Consequences:
 ## The shipped boot sequence
 
 Run by `gnssInit()` on every boot, before Bluetooth starts. Roughly **12 seconds**:
-2 × 1000 ms preamble + 16 × `GNSS_CMD_WAIT_MS` (600 ms).
+2 × 1000 ms preamble + 17 × `GNSS_CMD_WAIT_MS` (600 ms).
 
 Running it every boot is deliberate — the receiver is left in a known state no matter what the
 previous session or a firmware experiment did to it.
@@ -137,7 +139,7 @@ previous session or a firmware experiment did to it.
 | # | Command | Why | |
 |---|---|---|---|
 | 1 | `INTERFACEMODE COMPASS COMPASS ON` | Escape hatch. A previous run left COM1 in RTCM auto-detect, where ASCII is ignored; this pulls it back to the ComNav ASCII/binary protocol. On a cold receiver it is a harmless no-op. **Must be first.** | ✅ |
-| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 16 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
+| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 17 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
 
 ### Main sequence
 
@@ -149,16 +151,17 @@ previous session or a firmware experiment did to it.
 | 6 | `FIX NONE` | **Critical.** Clears the stored base-station coordinate. A base is `FIX POSITION`-ed to a surveyed point and will not compute a rover solution while that is set. | ✅ |
 | 7 | `SET APPSCENE Survey` | Select **rover survey** application scenario. Replaces `RTKDYNAMICS FOOT` (not in V3.1). See V3.1 §2.2.24, Table 2-5. | ✅ |
 | 8 | `UNLOCKOUTALL` | Re-enable every satellite/constellation the base config may have locked out. | ✅ |
-| 9 | `LOG COM1 GPGGA ONTIME 1` | Position, fix quality, sats, HDOP, altitude, **correction age**, base ID. The single most important sentence — NTRIP clients also echo it back to the caster. | ✅ |
-| 10 | `LOG COM1 GPGST ONTIME 1` | Position-error statistics: σ latitude / σ longitude / σ altitude. This is where "6 mm" comes from. | ✅ |
-| 11 | `LOG COM1 GPGSA ONTIME 1` | Active satellites, PDOP / HDOP / VDOP. | ✅ |
-| 12 | `LOG COM1 GPGSV ONTIME 1` | Satellites in view with SNR. Useful for siting; the bulkiest sentence by far. | ✅ |
-| 13 | `LOG COM1 GPRMC ONTIME 1` | Recommended minimum: position, speed, course, date. Some apps refuse to start without it. | ✅ |
-| 14 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
-| 15 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
-| 16 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
-| 17 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
-| 18 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
+| 9 | `RTKSOURCE RTCMV3 ANY` | Accept RTCM3 from any base station. Without this a station-specific ID silently discards corrections from other stations. Idempotent, accepted on FW 7.4.6. | ✅ |
+| 10 | `LOG COM1 GPGGA ONTIME 1` | Position, fix quality, sats, HDOP, altitude, **correction age**, base ID. The single most important sentence — NTRIP clients also echo it back to the caster. | ✅ |
+| 11 | `LOG COM1 GPGST ONTIME 1` | Position-error statistics: σ latitude / σ longitude / σ altitude. This is where "6 mm" comes from. | ✅ |
+| 12 | `LOG COM1 GPGSA ONTIME 1` | Active satellites, PDOP / HDOP / VDOP. | ✅ |
+| 13 | `LOG COM1 GPGSV ONTIME 1` | Satellites in view with SNR. Useful for siting; the bulkiest sentence by far. | ✅ |
+| 14 | `LOG COM1 GPRMC ONTIME 1` | Recommended minimum: position, speed, course, date. Some apps refuse to start without it. | ✅ |
+| 15 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
+| 16 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
+| 17 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
+| 18 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
+| 19 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
 
 > **INS / dead-reckoning is deliberately absent.** An earlier revision of this firmware sent
 > `INSCONTROL ENABLE` and `SET SMOOTHEDDR ON`. They are gone: the K803 has an IMU but no tilt
@@ -674,6 +677,16 @@ sentences, an app that stutters. If you see that, cut `GSV` first.
 Nothing to configure — `INTERFACEMODE COM1 AUTO AUTO ON` auto-detects the stream. What the
 receiver expects from a caster:
 
+| Command | Effect | |
+|---|---|---|
+| `RTKSOURCE RTCMV3 ANY` | Accept RTCM3 corrections from **any** base-station ID. See V3.1 §2.2.20. | ✅ |
+| `RTKSOURCE RTCMV3 <stnid>` | Accept RTCM3 only from that station ID — everything else is dropped silently. | 🔷 |
+
+`RTKSOURCE RTCMV3 ANY` is part of the shipped boot sequence for a reason: with a specific ID
+stored on the receiver, corrections from any other base are discarded **without any sign** —
+NMEA keeps streaming, a point keeps plotting, RTK never fixes. There is no read command for it
+(`LOG RTKSOURCE` → `Error! Invalid key word!`); the value only shows up inside `LOG SYSCONFIG`.
+
 | Message | Contents |
 |---|---|
 | 1005 / 1006 | Base station ARP coordinates |
@@ -891,7 +904,8 @@ link is fine and only those commands are unsupported.
 - **Don't save a baud change** unless you also change `GNSS_BAUD` and reflash.
 - **Talker IDs vary.** `$GPGGA` vs `$GNGGA` is normal, and neither breaks anything.
 - **Board revisions vary.** The boot sequence was replayed against this project's board
-  (`S32352K803`, FW 7.4.6) and all 17 commands were accepted. A different revision may answer
+  (`S32352K803`, FW 7.4.6) and all commands then in `kCommands[]` were accepted. A different
+  revision may answer
   differently — on first boot read the log; if your unit behaves differently, open an issue
   with `LOG VERSION` output and the boot log.
 - **`SET APPSCENE` replaces `RTKDYNAMICS` and `RTKOBSMODE`.** Both are absent from V3.1.
@@ -914,9 +928,9 @@ link is fine and only those commands are unsupported.
 - **`RTKSOURCE` can silently discard every correction.** V3.1 §2.2.20 filters incoming RTCM by
   base-station ID. With a specific ID set, corrections from any other station are dropped
   without a word — NMEA keeps streaming, a point keeps plotting, and RTK never fixes. The
-  documented `RTKSOURCE RTCMV3 ANY` is accepted on 7.4.6; send it once and confirm. Note that
-  `LOG RTKSOURCE` is **not** a valid read command (`Error! Invalid key word!`) — the value only
-  appears inside `LOG SYSCONFIG`.
+  boot sequence now sends `RTKSOURCE RTCMV3 ANY` for exactly this reason (accepted on 7.4.6).
+  Note that `LOG RTKSOURCE` is **not** a valid read command (`Error! Invalid key word!`) — the
+  value only appears inside `LOG SYSCONFIG`.
 - **SBAS is turned off with `SET SIGNAL SBAS OFF`.** Neither `SBASSYS DISABLE` nor
   `SET SBAS OFF` is accepted on 7.4.6, even though `SBASSYS` is listed in the V3.1 contents as
   §2.2.32. `SET SIGNAL SBAS OFF` answers `OK` and `LOG SYSCONFIG` then shows

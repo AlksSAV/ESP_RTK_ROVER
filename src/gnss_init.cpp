@@ -54,6 +54,11 @@ static const Cmd kCommands[] = {
     {"SET APPSCENE Survey", true, 2},  // (V3.1 2.2.24) rover survey mode — replaces RTKDYNAMICS
     {"UNLOCKOUTALL", true, 1},         // (V3.1 2.2.28)
 
+    // Filter RTCM by base station ID. "ANY" lets all RTCM3 frames through the
+    // RTK engine; without it a station-specific ID silently discards corrections
+    // from any other base. Idempotent, accepted on FW 7.4.6.
+    {"RTKSOURCE RTCMV3 ANY", true, 1},  // (V3.1 2.2.20)
+
     // INS / dead-reckoning is deliberately NOT enabled. The K803 has an IMU but
     // no tilt compensation, so DR adds no accuracy to a stop-and-go pole rover -
     // and once INS is engaged the receiver starts reporting GGA quality 6

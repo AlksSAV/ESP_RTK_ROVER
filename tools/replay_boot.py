@@ -24,6 +24,7 @@ COMMANDS = [
     ("FIX NONE", True, 1),
     ("SET APPSCENE Survey", True, 2),
     ("UNLOCKOUTALL", True, 1),
+    ("RTKSOURCE RTCMV3 ANY", True, 1),
     ("LOG COM1 GPGGA ONTIME 1", True, 1),
     ("LOG COM1 GPGST ONTIME 1", True, 1),
     ("LOG COM1 GPGSA ONTIME 1", True, 1),
