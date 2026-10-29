@@ -174,6 +174,23 @@ Firmware layout: `src/main.cpp` moves bytes, `src/gnss_init.cpp` configures the 
 
 ---
 
+## Field test results
+
+| | |
+|---|---|
+| **Open sky (60 s)** | 17 sats, C/N0 median 33 dB-Hz, max 38 dB-Hz, HDOP 0.8, quality 1 |
+| **RTCM path (150 s, 15.4 km)** | 136 epochs SINGLE → 16 epochs RTK FLOAT, GGA age 1.0 s |
+| **Caster** | `pidt.net` mount 2307, MSM5 GPS/GLONASS/Galileo/BeiDou |
+| **Antenna** | BT-800D without ground plane — C/N0 33–38 vs typical 45–52 |
+
+The whole chain is verified: `INTERFACEMODE AUTO` → `0xD3` auto-detect → CRC-24Q → RTK engine
+→ FLOAT. The limiting factor is the antenna's C/N0 without a ground plane, not the firmware.
+
+See **[TODO.md](TODO.md) §11–12** for the full bench logs, the `BESTPOSA` bench tool, and the
+open-sky measurement that proved the antenna was the only missing piece.
+
+---
+
 ## License
 
 [MIT](LICENSE) — do what you like, credit appreciated, no warranty.
