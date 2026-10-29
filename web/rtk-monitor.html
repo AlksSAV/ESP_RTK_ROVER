@@ -220,6 +220,22 @@
     </div>
   </div>
 
+  <div class="card" id="bestposCard" hidden>
+    <h2>Engine verdict <span class="spacer"></span>
+      <span style="font-weight:400;text-transform:none;letter-spacing:0">BESTPOSA · enable with <code>LOG COM1 BESTPOSA ONTIME 1</code></span>
+    </h2>
+    <div class="grid">
+      <div class="cell"><div class="k">Pos type</div><div class="v" id="bpSoln">–</div></div>
+      <div class="cell"><div class="k">Sol stat</div><div class="v" id="bpStat">–</div></div>
+      <div class="cell"><div class="k">σ Latitude</div><div class="v" id="bpSdLat">–</div></div>
+      <div class="cell"><div class="k">σ Longitude</div><div class="v" id="bpSdLon">–</div></div>
+      <div class="cell"><div class="k">σ Height</div><div class="v" id="bpSdHgt">–</div></div>
+      <div class="cell"><div class="k">Height (ell.)</div><div class="v" id="bpHgt">–</div></div>
+      <div class="cell"><div class="k">Station ID</div><div class="v" id="bpStn">–</div></div>
+      <div class="cell"><div class="k">Datum</div><div class="v" id="bpDatum">–</div></div>
+    </div>
+  </div>
+
   <div class="card">
     <h2>Quality &amp; motion <span class="spacer"></span>
       <span style="font-weight:400;text-transform:none;letter-spacing:0">GST · GSA · RMC · VTG</span>
@@ -268,6 +284,7 @@ const $ = id => document.getElementById(id);
 // --------------------------------------------------------------------------
 const S = {
   gga: null, gst: null, gsa: null, rmc: null, vtg: null, zda: null,
+  bestpos: null,
   bytes: 0, sentences: 0, bad: 0,
   rateBytes: 0, rate: 0, lastFixMs: 0,
   lines: [], paused: false, dirty: true,
@@ -335,7 +352,53 @@ function toClock(t) {
   return `${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4)}`;
 }
 
+// --------------------------------------------------------------------------
+// BESTPOSA - ComNav ASCII (not NMEA), V3.1 §3.2.5.1:
+//   #BESTPOSA,COM3,0,60.0,...,<seq>;SOL_COMPUTED,NARROW_FLOAT,lat,lon,hgt,
+//   undulation,WGS84,σlat,σlon,σhgt,"0004",...*<crc32>
+// The data section after ';' is comma-separated. The checksum is CRC32, not
+// the NMEA XOR, so it is not verified here - structure is parsed instead.
+// Pos type is the engine's own verdict: NARROW_FLOAT / NARROW_INT are the
+// RTK float / fixed states that GGA hides behind quality 5 / 4.
+const BESTPOS_TYPE = {
+  'NONE':            ['NONE',          'var(--bad)'],
+  'SINGLE':          ['SINGLE',        'var(--ink-dim)'],
+  'PSRDIFF':         ['PSRDIFF',       'var(--accent)'],
+  'NARROW_FLOAT':    ['RTK FLOAT',     'var(--warn)'],
+  'NARROW_INT':      ['RTK FIXED',     'var(--ok)'],
+  'PPP_CONVERGING':  ['PPP CONV.',     'var(--accent)'],
+  'PPP':             ['PPP',           'var(--accent)'],
+  'INS':             ['INS',           'var(--warn)'],
+};
+
+function parseBestpos(line) {
+  const semi = line.indexOf(';');
+  if (semi < 0) return null;
+  const body = line.slice(0, line.lastIndexOf('*') > semi ? line.lastIndexOf('*') : undefined);
+  const f = body.slice(semi + 1).split(',');
+  if (f.length < 11) return null;
+  return {
+    stat: f[0], soln: f[1],
+    lat: parseFloat(f[2]), lon: parseFloat(f[3]), hgt: parseFloat(f[4]),
+    datum: f[6],
+    sdLat: parseFloat(f[7]), sdLon: parseFloat(f[8]), sdHgt: parseFloat(f[9]),
+    stn: f[10].replace(/"/g, ''),
+  };
+}
+
 function handleSentence(line) {
+  // ComNav ASCII logs (#BESTPOSA, ...) carry a CRC32 instead of the NMEA
+  // XOR checksum - verify nothing, parse the structure.
+  if (line[0] === '#') {
+    pushLog(line, false);
+    S.sentences++;
+    if (line.startsWith('#BESTPOSA')) {
+      const b = parseBestpos(line);
+      if (b) { S.bestpos = b; S.dirty = true; }
+    }
+    return;
+  }
+
   const ok = checksumOk(line);
   if (ok === false) { S.bad++; pushLog(line, true); return; }
 
@@ -405,6 +468,7 @@ function render() {
   S.dirty = false;
 
   const g = S.gga;
+  const b = S.bestpos;
   if (g) {
     const [label, color] = QUALITY[g.quality] || [`QUALITY ${g.quality || '?'}`, 'var(--ink-dim)'];
     $('fixQuality').textContent = label;
@@ -444,7 +508,30 @@ function render() {
     html('sdLon', n(S.gst.sdLon, 3, 'm'));
     html('sdAlt', n(S.gst.sdAlt, 3, 'm'));
   }
+  // BESTPOSA σ overrides GST when available (same units, directly from engine)
+  if (b) {
+    html('sdLat', n(b.sdLat, 3, 'm'));
+    html('sdLon', n(b.sdLon, 3, 'm'));
+    html('sdAlt', n(b.sdHgt, 3, 'm'));
+  }
   if (S.gsa) { set('pdop', S.gsa.pdop || '–'); set('vdop', S.gsa.vdop || '–'); }
+
+  // BESTPOSA card — show Pos type + σ
+  const bpCard = $('bestposCard');
+  if (b) {
+    bpCard.hidden = false;
+    const [solnLabel] = BESTPOS_TYPE[b.soln] || [b.soln, 'var(--ink-dim)'];
+    set('bpSoln', solnLabel);
+    set('bpStat', b.stat || '–');
+    set('bpSdLat', (b.sdLat * 1000).toFixed(1) + ' mm');
+    set('bpSdLon', (b.sdLon * 1000).toFixed(1) + ' mm');
+    set('bpSdHgt', (b.sdHgt * 1000).toFixed(1) + ' mm');
+    set('bpHgt', n(b.hgt, 4, 'm'));
+    set('bpStn', b.stn || '–');
+    set('bpDatum', b.datum || '–');
+  } else {
+    bpCard.hidden = true;
+  }
 
   const kph = S.vtg ? S.vtg.kph : (S.rmc && isFinite(S.rmc.knots) ? S.rmc.knots * 1.852 : null);
   html('speed', n(kph, 2, 'km/h'));
