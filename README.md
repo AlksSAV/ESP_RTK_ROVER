@@ -156,8 +156,10 @@ Two ways to get data:
 > because Apple requires all browsers to use WebKit). The Wi-Fi AP method works on iPhone.
 
 One self-contained HTML file. Decodes the stream live: fix quality, position, σ values, DOPs,
-correction age, and a raw NMEA log with checksum errors highlighted. Nothing is uploaded
-anywhere — your position stays in your browser.
+correction age, and a raw NMEA log with checksum errors highlighted. If the receiver is asked for
+`LOG COM1 BESTPOSA ONTIME 1`, the dashboard also shows the engine's own verdict — Pos type
+(`SINGLE` / `PSRDIFF` / `NARROW_FLOAT` / `NARROW_INT`) and σ straight from the RTK engine. Nothing
+is uploaded anywhere — your position stays in your browser.
 
 ---
 
