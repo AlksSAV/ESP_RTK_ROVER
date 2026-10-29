@@ -5,13 +5,18 @@ sends through the ESP32 bridge, pushed straight into the receiver's COM1 while
 the port sits in AUTO auto-detect. If GGA quality goes 1 -> 5 -> 4, the whole
 premise of the rover works, with no ESP32 and no phone involved.
 
+The receiver is also asked for BESTPOSA, which reports the RTK engine's own
+verdict - Pos type (SINGLE / PSRDIFF / NARROW_FLOAT / NARROW_INT) plus the
+position standard deviations - so a run that stalls says whether it stopped at
+the pseudorange or at the carrier-phase stage. BESTPOSA wins over GGA whenever
+both are present.
+
 Credentials come from a local file (git-ignored) and are never printed.
 
 Usage: python tools/ntrip_to_receiver.py COM17 [mountpoint]
        reads host/port/login/pass from .ntrip in the project root
 """
 import base64
-import json
 import socket
 import sys
 import threading
@@ -104,8 +109,14 @@ def serial_read(ser, stop, state):
                     state["gga"].append(line)
                     if len(state["gga"]) > 600:
                         state["gga"].pop(0)
-                else:
-                    state["last_other"] = line
+            # BESTPOSA is ComNav ASCII (not NMEA): starts with #, fields separated
+            # by comma then semicolon before data:
+            #   #BESTPOSA,COM3,0,60.0,...,<seq>;SOL_COMPUTED,<pos_type>,lat,lon,...
+            elif line.startswith("#BESTPOSA") and ";" in line:
+                state["bestpos"] = line
+                state["bestpos_list"].append(line)
+                if len(state["bestpos_list"]) > 600:
+                    state["bestpos_list"].pop(0)
 
 
 def parse_gga(line):
@@ -123,6 +134,38 @@ def parse_gga(line):
         "age": f[13],
         "refid": f[14],
     }
+
+
+# BESTPOSA is ComNav ASCII, not NMEA (V3.1 §3.2.5.1). The data section after
+# the ';' header, comma-separated:
+#   0 Sol stat | 1 Pos type | 2 Lat | 3 Lon | 4 Hgt | 5 Undulation | 6 Datum
+#   7 Lat std (m) | 8 Lon std (m) | 9 Hgt std (m) | 10 Station ID | ...
+# Pos type is a string: SINGLE, PSRDIFF, NARROW_FLOAT, NARROW_INT, ...
+# NARROW_FLOAT / NARROW_INT are the RTK float / fixed states — what GGA calls
+# 5 / 4, but with σ directly from the engine instead of HDOP inference.
+
+
+def parse_bestpos(line):
+    try:
+        body = line.split("*")[0]          # drop the CRC tail
+        data = body.split(";", 1)[1]       # skip the log header
+        f = data.split(",")
+        if len(f) < 11:
+            return None
+        return {
+            "sol_stat": f[0],
+            "soln": f[1],
+            "lat": float(f[2]),
+            "lon": float(f[3]),
+            "hgt": float(f[4]),
+            "datum": f[6],
+            "sigma_lat": float(f[7]),
+            "sigma_lon": float(f[8]),
+            "sigma_hgt": float(f[9]),
+            "stnid": f[10].strip('"'),
+        }
+    except (ValueError, IndexError):
+        return None
 
 
 QUAL = {"0": "NO FIX", "1": "SINGLE", "2": "DGPS/SBAS", "4": "RTK FIXED",
@@ -152,12 +195,12 @@ def main():
     print("\n== 1. put COM1 in differential auto-detect ==")
     send("INTERFACEMODE COMPASS COMPASS ON", 1.0)
     send("UNLOGALL COM1", 1.2)
-    for s in ("GPGGA", "GPGST", "GPGSA", "GPGSV"):
+    for s in ("GPGGA", "GPGST", "GPGSA", "GPGSV", "BESTPOSA"):
         send(f"LOG COM1 {s} ONTIME 1", 0.6)
-    print("  NMEA logs re-enabled, switching port to AUTO...")
+    print("  NMEA logs + BESTPOSA re-enabled, switching port to AUTO...")
     send("INTERFACEMODE COM1 AUTO AUTO ON", 1.5)
 
-    state = {"raw": [], "gga": [], "last": None}
+    state = {"raw": [], "gga": [], "last": None, "bestpos": None, "bestpos_list": []}
     stats = {"bytes": 0}
     stop = Stop()
 
@@ -171,6 +214,7 @@ def main():
     t0 = time.time()
     last_report = 0
     qualities = {}
+    soln_types = {}
     try:
         for data in ntrip:
             ser.write(data)
@@ -178,15 +222,26 @@ def main():
             if now - last_report >= 5.0:
                 last_report = now
                 g = parse_gga(state["last"]) if state["last"] else None
+                b = parse_bestpos(state["bestpos"]) if state["bestpos"] else None
                 rate = stats["bytes"] / max(1e-9, now - t0)
-                if g:
+
+                # Prefer BESTPOSA (richer): Pos type + σ directly from the engine
+                if b:
+                    soln_types[b["soln"]] = soln_types.get(b["soln"], 0) + 1
+                    print(f"  t+{now-t0:4.0f}s  {rate:7.0f} B/s in   "
+                          f"{b['sol_stat']},{b['soln']}  "
+                          f"σlat {b['sigma_lat']*1000:7.1f}mm  "
+                          f"σlon {b['sigma_lon']*1000:7.1f}mm  "
+                          f"σhgt {b['sigma_hgt']*1000:7.1f}mm  "
+                          f"stn {b['stnid']!r}")
+                elif g:
                     qualities[g["qual"]] = qualities.get(g["qual"], 0) + 1
                     print(f"  t+{now-t0:4.0f}s  {rate:7.0f} B/s in   "
                           f"qual {g['qual']} ({QUAL.get(g['qual'], '?')})  "
                           f"sats {g['sats']:>2s}  hdop {g['hdop']:>4s}  "
                           f"age {g['age']!r}  ref {g['refid']!r}")
                 else:
-                    print(f"  t+{now-t0:4.0f}s  {rate:7.0f} B/s in   (no GGA yet)")
+                    print(f"  t+{now-t0:4.0f}s  {rate:7.0f} B/s in   (no GGA/BESTP yet)")
             if now - t0 > 180:
                 break
     except KeyboardInterrupt:
@@ -200,8 +255,12 @@ def main():
     print("\n== 3. result ==")
     print(f"  RTCM pushed: {stats['bytes']} bytes "
           f"({stats['bytes']/max(1e-9, time.time()-t0):.0f} B/s)")
-    print(f"  fix qualities observed: "
+    print(f"  solution types observed: "
+          f"{soln_types if soln_types else '(no BESTPOSA)'}")
+    print(f"  fix qualities (GGA fallback): "
           f"{ {QUAL.get(k, k): v for k, v in sorted(qualities.items())} }")
+    if state["bestpos"]:
+        print("  last BESTPOSA:", state["bestpos"])
     if state["gga"]:
         print("  last GGA:", state["gga"][-1])
     gst = [l for l in state["raw"] if l[3:6] == "GST"]

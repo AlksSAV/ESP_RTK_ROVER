@@ -569,9 +569,13 @@ Generic NMEA — внешний код, стоит проверить в пол�
 
 ### 12.3 Что осталось выяснить
 
-- [ ] Повторить прогон, читая **`BESTPOSA`** вместо NMEA: `SolutionType`
-      (`SINGLE` / `PSRDIFF` / `NARROW_FLOAT` / `NARROW_INT`) и σ напрямую покажут,
-      где движок останавливается — на псевдодальностях или на фазе
+- [x] `ntrip_to_receiver.py` — добавлен парсер `BESTPOSA` (V3.1 §3.2.5.1):
+      `Pos type` (`SINGLE` / `PSRDIFF` / `NARROW_FLOAT` / `NARROW_INT`) и σ
+      напрямую из RTK-движка. Лучит NMEA: показывается `SOL_COMPUTED,NARROW_FLOAT`
+      с σlat/σlon/σhgt в мм. Также показывается GGA fallback, если BESTPOSA не
+      прилетел (например, порт в AUTO и BESTPOSA не настроен)
+- [ ] Повторить прогон с `BESTPOSA` на открытом небе — подтвердить, что
+      NARROW_FLOAT → NARROW_INT при нормальном ground plane и C/N0 45+
 - [ ] Повторить под открытым небом с нормальным ground plane — при C/N0 45+ и
       базовой линии 15 км шансы на `FIXED` радикально выше
 - [ ] Починить отчёт в `ntrip_to_receiver.py` — **сделано**: `state["last"]` затирался
