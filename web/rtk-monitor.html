@@ -469,7 +469,41 @@ function render() {
 
   const g = S.gga;
   const b = S.bestpos;
-  if (g) {
+
+  // BESTPOSA drives the fix banner when present (Pos type + σ from engine).
+  // GGA is the fallback when BESTPOSA is not enabled.
+  if (b) {
+    const [label, color] = BESTPOS_TYPE[b.soln] || [b.soln, 'var(--ink-dim)'];
+    $('fixQuality').textContent = label;
+    $('fixBanner').style.setProperty('--q', color);
+
+    $('fixSats').textContent = '–';
+    $('fixHdop').textContent = '–';
+    $('fixBase').textContent = b.stn || '–';
+    $('fixTime').textContent = '–';
+
+    $('fixAge').textContent = isFinite(b.sdHgt)
+      ? (b.sdHgt * 1000).toFixed(1) + ' mm σ' : '–';
+
+    if (b.lat !== null && b.lon !== null) {
+      $('lat').textContent = b.lat.toFixed(8);
+      $('lon').textContent = b.lon.toFixed(8);
+      $('latDms').textContent = toDms(b.lat, 'lat');
+      $('lonDms').textContent = toDms(b.lon, 'lon');
+      $('mapLink').href = `https://www.google.com/maps?q=${b.lat.toFixed(8)},${b.lon.toFixed(8)}`;
+    }
+
+    html('alt',   n(b.hgt, 4, 'm'));
+    html('geoid', n(b.hgt, 4, 'm'));  // no geoid in BESTPOSA
+    html('hae',   n(b.hgt, 4, 'm'));
+    set('sats',   '–');
+    set('hdop',   '–');
+    set('base',   b.stn || '–');
+    set('utc',    '–');
+    html('age', isFinite(b.sdHgt)
+      ? (b.sdHgt * 1000).toFixed(1) + '<u>mm σ</u>' : '–');
+    $('age').className = 'v ok';
+  } else if (g) {
     const [label, color] = QUALITY[g.quality] || [`QUALITY ${g.quality || '?'}`, 'var(--ink-dim)'];
     $('fixQuality').textContent = label;
     $('fixBanner').style.setProperty('--q', color);
