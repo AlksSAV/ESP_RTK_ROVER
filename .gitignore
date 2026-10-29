@@ -4,6 +4,7 @@
 
 # Local tool state
 .claude/
+__pycache__/
 
 # NTRIP caster credentials - never commit
 .ntrip
