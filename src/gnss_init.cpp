@@ -78,9 +78,17 @@ static const Cmd kCommands[] = {
     {"PPSCONTROL ENABLE POSITIVE 1 1000 1", true, 1},
 #endif
 
+    // SAVECONFIG has to come BEFORE the port switches to RTCM auto-detect.
+    // Measured on FW 7.4.6: a port in AUTO parses no ASCII whatsoever - even a
+    // garbage keyword draws no reply - so everything sent after INTERFACEMODE
+    // is shouted into a port that is not listening. Kept as a real command with
+    // expectReply so the boot log proves the config actually persisted.
+    // Costs ~400 ms (flash write), the slowest reply in the sequence, which
+    // still fits inside GNSS_CMD_WAIT_MS.
+    {"SAVECONFIG", true, 1},  // (V3.1 2.2.22) persist config
+
     // LAST - after this the port no longer takes commands
     {"INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON", false, 1},  // (V3.1 2.2.10)
-    {"SAVECONFIG", false, 1},  // (V3.1 2.2.22) persist config
 };
 
 static char resp[1024];  // LOG VERSION can exceed 512 bytes on some firmwares

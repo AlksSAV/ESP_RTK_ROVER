@@ -12,6 +12,8 @@ firmware, plus the ASCII command set from OEM Board Reference Manual **V3.1**.
   - [Positioning mode](#positioning-mode)
   - [NMEA output](#nmea-output)
   - [Diagnostics](#diagnostics)
+  - [Antenna electronics (`SET AE`)](#antenna-electronics-set-ae)
+  - [Spectrum scan](#spectrum-scan)
   - [Interface mode and differential input](#interface-mode-and-differential-input)
   - [Persistence and reset](#persistence-and-reset)
   - [IMU / Dead-reckoning (not used)](#imu--dead-reckoning-not-used)
@@ -31,21 +33,27 @@ firmware, plus the ASCII command set from OEM Board Reference Manual **V3.1**.
 
 | Mark | Meaning |
 |---|---|
-| ✅ | **Emitted by the shipped boot sequence.** The mark says nothing about whether the receiver accepted it — watch for `REJECTED` in the boot log. |
+| ✅ | **Emitted by the shipped boot sequence.** Confirmed accepted by the receiver on this project's board (FW 7.4.6). |
 | 🔷 | Documented in the ComNav OEM Board Reference Manual V3.1, but not sent by this firmware. |
 | ⚠️ | **Not found in V3.1.** Reported to work on some firmware builds; confirm on your unit before relying on it. |
 
-> ⚠️ **Nothing here has been verified on this project's board.** The boot sequence is inherited
-> from upstream, where it was confirmed on a different K803 board. Treat every ✅ as "will be
-> sent", not as "works". The first thing to do with a fresh board is read the boot log.
+> **Verified on hardware.** The boot sequence and the commands marked ✅ below were replayed
+> against this project's K803 (model `S32352K803`, FW **7.4.6**, build 2025/Dec/30) over
+> COM13 at 115200 8N1. All 17 commands were accepted — `rejected=0, silent=0` — and the
+> resulting configuration survived a cold power cycle. See [TODO.md](TODO.md) item 11 for the
+> full bench log, including the antenna fault that was found along the way.
 
-Command availability varies with firmware build and **authorization**. A command your unit
-does not support is rejected, not silently ignored — check the reply.
+Command availability still varies with firmware build and **authorization**. A command your
+unit does not support is rejected, not silently ignored — check the reply.
 
 > ⚠️ **One command group in V3.1 does not apply to this receiver.** The `insrtk` tilt
 > measurement group (§4.6) and the tilt logs of §3.4.8 (`INSRTKCOMPENSATE`, ID 2366) are
 > documented for a different board variant. On the K803 they are rejected, and no amount of
 > authorization will make them answer. Everything else in this file applies.
+
+> ⚠️ **`OK! Command accepted!` does not mean the log exists.** `LOG TRACKSTATA` answers
+> exactly that and then emits nothing, because the keyword parses but the log is not
+> implemented in 7.4.6. Trust the output, not the acknowledgement.
 
 ---
 
@@ -149,8 +157,8 @@ previous session or a firmware experiment did to it.
 | 14 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
 | 15 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
 | 16 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
-| 17 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
-| 18 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Sent after the port stops parsing ASCII — see the note below.** | ✅ |
+| 17 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
+| 18 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
 
 > **INS / dead-reckoning is deliberately absent.** An earlier revision of this firmware sent
 > `INSCONTROL ENABLE` and `SET SMOOTHEDDR ON`. They are gone: the K803 has an IMU but no tilt
@@ -159,15 +167,16 @@ previous session or a firmware experiment did to it.
 > which a GIS app accepts as valid. See
 > [IMU / Dead-reckoning](#imu--dead-reckoning-not-used) for the commands if you want them.
 
-> ⚠️ **`SAVECONFIG` is in the wrong place and is effectively dead code.** It is emitted
-> *after* `INTERFACEMODE … AUTO AUTO ON`, at which point the port interprets incoming bytes
-> as RTCM and no longer reads ASCII, so the receiver never sees it as a command. It is
-> harmless (nothing rejects it, nothing acts on it), and it costs nothing, because the ESP32
-> replays the entire sequence on every boot and never relies on stored state.
+> **`SAVECONFIG` used to sit after `INTERFACEMODE` and was dead code — now fixed.** Measured on
+> FW 7.4.6: once the port is in `AUTO`, it parses **no** ASCII at all. Even a garbage keyword
+> draws silence instead of `Error! Invalid key word!`, so nothing sent after `INTERFACEMODE` is
+> ever heard. `INTERFACEMODE` itself is the single exception — that is what makes the escape
+> hatch work.
 >
-> If you want the configuration to survive without the ESP32, move `SAVECONFIG` to just
-> **before** the `INTERFACEMODE` line and check the reply in the boot log. Until that is
-> done and verified on a real unit, treat the receiver's non-volatile config as untouched.
+> `SAVECONFIG` now comes **before** the switch, with `expectReply = true` so the boot log proves
+> it landed. It answers in ~400 ms (flash write), the slowest reply in the sequence and still
+> comfortably inside `GNSS_CMD_WAIT_MS = 600`. Verified on hardware: after a cold power cycle
+> the receiver starts streaming NMEA on its own and `LOG LOGLIST` still lists all seven logs.
 
 After the sequence the firmware drains the echo tail so the first bytes a phone receives are
 live NMEA, not a command transcript.
@@ -195,13 +204,18 @@ messages continuously; leaving them on wastes bandwidth and confuses NMEA parser
 ```
 COM COM1 115200
     │    └──────  baud: 1200, 4800, 9600, 19200, 38400,
-    └───────────  port: COM1~COM4        57600, 115200, 230400, 460800, 921600
+    └───────────  port: COM1~COM5        57600, 115200, 230400, 460800, 921600
 ```
 
 | Command | Effect | |
 |---|---|---|
 | `COM COM1 115200` | Set COM1 baud rate. V3.1 §2.2.1 defines only `<port> <baudrate>` — parity, stop bits and handshaking are not settable. | 🔷 |
 | `LOG COMCONFIG` | Report the current port settings. See V3.1 §3.2.2.1, Table 3-4 entry #10. | ✅ |
+
+> **Five ports in the log, three on the board.** `LOG COMCONFIG` on FW 7.4.6 lists
+> COM1–COM5, all at 115200 8N1. Only COM1–COM3 are physically broken out on this carrier
+> board; COM4/COM5 are internal and have no connector. Do not go looking for pads that are
+> not there.
 
 > ⚠️ **Changing the baud rate will lock you out.** The receiver switches the moment the
 > command is acknowledged; your terminal (or the ESP32) is still on the old rate. If you
@@ -296,8 +310,37 @@ AUTO ON`, because afterwards the port will not answer.
 
 Reports the current system configuration in one dump: PVT/PPP/RTK frequency, cut angles,
 lockout status, RTK base mode, app scene, interface mode per port, PPS control, datum, etc.
-Useful for diff-checking after write commands. **Not documented in V3.1** — send it once and
-see whether your build answers. | ⚠️
+Useful for diff-checking after write commands. **Not documented in V3.1**, but confirmed
+working on FW 7.4.6 — it answers with the full block. | ✅
+
+Worth reading once on a new unit. What it reports on a factory board:
+
+```
+PVT Frequency: 5 Hz          RTK Base Mode: FIXED-BASE      App Scene: SURVEY. 0
+RtkSnrThresh : 28            RTK Time Out : 200.0 s         ReceiverRole: Single
+PvtObs       : G(1) C(6) R(9) E(13)      SBAS: Disabled     PPP: OFF
+AE           : 100M          PPS Control: ENABLE POSITIVE 1.00s 1000us Model 0
+```
+
+`RTK Base Mode: FIXED-BASE` is a stored setting, not an active state — `ReceiverRole: Single`
+and an empty `LOGLIST` are what tell you the unit is not running as a base.
+
+`AE : 100M` is the antenna-electronics clock. See [Antenna electronics](#antenna-electronics-set-ae).
+
+#### `LOG LOGLIST`
+
+Lists the logs currently configured. On a fresh receiver it answers `OK!` and prints **nothing**
+— that is a correct empty list, not a broken command. After the boot sequence it shows all
+seven NMEA logs:
+
+```
+COM1,GPGGA,ABBASCII,ONTIME,1.000,0.000,
+COM1,GPGST,ABBASCII,ONTIME,1.000,0.000,
+...
+```
+
+Useful as the cheapest proof that `SAVECONFIG` worked: power-cycle the receiver and check that
+the list is still populated without the ESP32 touching it.
 
 #### Other useful logs
 
@@ -307,10 +350,109 @@ see whether your build answers. | ⚠️
 | `LOG BESTVELA ONTIME 1` | Best velocity (ID 99). See V3.1 §3.2.5.2. | 🔷 |
 | `LOG PSRPOSA ONTIME 1` | Pseudorange position (ID 47). See V3.1 §3.2.5.5. | 🔷 |
 | `LOG SATXYZA ONTIME 5` | Satellite positions in ECEF plus clock/iono/tropo corrections. See V3.1 §3.2.7.5. | 🔷 |
-| `LOG LOGLIST` | List all available log types (ID 5). See V3.1 §3.2.2.2. | 🔷 |
+| `LOG SYSRTS ONTIME 1` | Real-time board status: CPU/interrupt load, temperature, antenna status. See below. | 🔷 |
+| `LOG SPECTRUMB ONTIME 1` | RF spectrum sweep. **Binary only** — `LOG SPECTRUM` is accepted and stays silent. See [Spectrum scan](#spectrum-scan). | 🔷 |
 
 These are ASCII logs, not NMEA. Handy on the bench; leave them off in the field, since GIS
 apps will not parse them and they eat bandwidth.
+
+#### `LOG SYSRTS` — board status
+
+```
+$SYSRTS,400.00,000622.00,29,1,0,AT,0,,,0,0,,,,,,,,,M,SURVEY,0,,,0,0,2200,,,0,,,,*42
+                     │ │ │ │  │ └ ANT1 SNR
+                     │ │ │ │  └─── ANT1 qual
+                     │ │ │ └────── ANT1 status
+                     │ │ └──────── CPU temperature
+                     │ └────────── CPU utilization %
+                     └──────────── interrupt utilization %
+```
+
+Per V3.1 §3.4.5, `ANT1 status` is `0 = No Load`, `1 = Normal`, `2 = Short circuit`,
+`3 = Crosstalk`, and `ANT1 qual` is a 0–100 score (≥ 85 in open sky).
+
+> ⚠️ **On this board the antenna fields are empty.** FW 7.4.6 reports `ANT1 SNR` as `0` and
+> leaves `qual` and `status` blank, so `SYSRTS` **cannot** be used to diagnose the antenna
+> here. Everything else in the log (load, temperature, solution status) is populated and
+> useful. Do not read the blank fields as "no antenna" — they simply are not filled in.
+
+#### `LOG TRACKSTATA`
+
+Not usable. It answers `OK! Command accepted!` and then emits nothing — the keyword parses but
+the log is not implemented in 7.4.6. There is no per-channel C/N0 view on this build; use
+`GPGSV` for signal strength instead.
+
+### Antenna electronics (`SET AE`)
+
+```
+SET AE OFF | 25M | 100M
+```
+
+V3.1 §2.2.24: sets the working state of the **AE (Antenna Electronics)** at power-on — `OFF`,
+`25M` (25 MHz clock AE) or `100M` (100 MHz clock AE, **default**). This is a clocked antenna
+interface, not the plain DC bias an ordinary active antenna uses.
+
+> **It does nothing for a Beitian BT-800D.** Measured on this project's board: stepping
+> `SET AE` through `100M` → `OFF` → `25M` and waiting 20 s at each step left the satellite
+> count at exactly zero. The BT-800D has a DC-biased LNA and no clocked electronics, so the
+> setting is irrelevant to it. If you are chasing a dead antenna, look elsewhere —
+> [HARDWARE.md → Antenna](HARDWARE.md#antenna) has the diagnostic sequence.
+
+### Spectrum scan
+
+```
+SCANSPECTRUM <center-freq> <scan-range> <scan-times>
+LOG COM1 SPECTRUMB ONTIME 1
+```
+
+V3.1 §2.2.26: sweeps the RF front end. `center-freq` is in **kHz** (1165000–1613000),
+`scan-range` in kHz (0–11500), `scan-times` is the number of points (3–200). The receiver
+acknowledges with `ScanBegin:<f>KHz <r>KHz <n>`.
+
+`LOG SPECTRUM` (ID 2260) is the result — and it is **binary only**. Requesting `SPECTRUM`
+without the `B` suffix is accepted and then emits nothing, which is easy to mistake for a
+missing feature.
+
+Body layout, from V3.1 §3.4.4:
+
+| Offset | Field | Type |
+|---|---|---|
+| H+0 | Center frequency, kHz | int32 |
+| H+4 | Scan range, kHz | int32 |
+| H+8 | Number of points | int32 |
+| H+12 | Start frequency, kHz | int32 |
+| H+16 | Step, kHz (negative — the sweep runs downwards) | int32 |
+| H+20 | Level, one `uint16` per point | uint16 × N |
+
+Binary logs use the ComNav header: sync `AA 44 12`, header length at byte 3 (28 in current
+firmware), message ID at bytes 4–5, body length at bytes 8–9.
+
+> **How to read it — and what it cannot tell you.** GNSS signals sit **20 dB below the noise
+> floor** in the band a sweep covers: L1 C/A spreads ~23 dBW of transmitted power over 2 MHz, so
+> at the antenna it is around −130 dBm while thermal noise in that bandwidth is about −111 dBm.
+> **A spectrum sweep therefore never shows satellites.** It shows the noise floor and anything
+> narrowband sitting above it. Do not conclude "no signal" from a flat profile — a perfectly
+> working antenna looks flat too.
+>
+> What the sweep is genuinely good for:
+>
+> - **Interference.** A narrow peak spanning a few steps is a real emitter — a bad power supply,
+>   a video transmitter, an LED driver, a phone charger. Subtracting it is worth more than any
+>   amount of antenna fiddling.
+> - **Whether the front end sees anything at all.** A level pinned at the bottom of the range, or
+>   identical with the antenna shorted and open, points at a dead front end.
+> - **Relative comparison.** Same `SCANSPECTRUM` arguments, antenna connected versus
+>   disconnected: an active antenna with a live LNA raises the floor by roughly its gain minus the
+>   receiver's own noise figure.
+>
+> Two traps measured on this board. The reported level is in **arbitrary receiver units** — there
+> is no dBm calibration in V3.1, so absolute numbers mean nothing and only comparisons do. And a
+> sweep can come back **short**: one run reported 56 points where 100 were requested. Always check
+> that the returned point count matches the requested one before comparing two profiles.
+>
+> `tools/scan_spectrum.py` automates both passes. For antenna health, the DC bias measurement
+> under load is a far better instrument than the sweep — see
+> [HARDWARE.md → Antenna](HARDWARE.md#antenna).
 
 ### Interface mode and differential input
 
@@ -341,6 +483,15 @@ the RTK engine with no further configuration. That is the entire correction path
 > firmware, RTCM3 from the phone will not reach the RTK engine and you will never get
 > `GGA` quality `4` — the boot log will show `REJECTED` on that line. Read the boot log once
 > before trusting rover mode.
+
+> **What `AUTO` actually does to the port, measured on 7.4.6.** After
+> `INTERFACEMODE COM1 AUTO AUTO ON` the port parses **no** ASCII: a valid command and a garbage
+> keyword both draw silence, while in `COMPASSNAV` the same garbage answers
+> `Error! Invalid key word!`. The single exception is `INTERFACEMODE COMPASS COMPASS ON`, which
+> is still honoured — that is the escape hatch, and it is why recovery works at all.
+>
+> Two consequences: everything you want the receiver to keep must be sent **before** this line,
+> and `SAVECONFIG` in particular belongs above it (see [the boot sequence](#the-shipped-boot-sequence)).
 
 ### Persistence and reset
 
@@ -413,9 +564,8 @@ the GIS app. See [HARDWARE.md → What the K803 does not do](HARDWARE.md#what-th
 | `SET RELAYRTCMV3 ON COM2` | Relay RTCM3 from COM1 to COM2. See V3.1 §2.2 (`SET RELAYRTCMV3`). | 🔷 |
 | `SET RELAYRTCMV3 OFF COM2` | Disable RTCM3 relay. | 🔷 |
 
-> Whether the relay is on is visible in `LOG SYSCONFIG`, if your firmware answers it at all —
-> that keyword is not in V3.1. Otherwise just try it: corrections either arrive on COM2 or they
-> do not.
+> Whether the relay is on is visible in `LOG SYSCONFIG` (`RelayRtcmv3 : OFF, COM1` on a
+> factory board). Otherwise just try it: corrections either arrive on COM2 or they do not.
 
 ---
 
@@ -550,6 +700,35 @@ performance on the table.
 Growing age with a connected NTRIP client means the phone's cellular link is stalling, not
 the receiver.
 
+### Verified on hardware
+
+The correction path was tested end to end with **no ESP32 and no phone**: RTCM3 from a real
+NTRIP caster was written straight into the receiver's UART, exactly as the bridge would, with
+COM1 in `AUTO`. See [TODO.md](TODO.md) item 12 for the full log.
+
+```
+caster stream:  603 B/s, 88 frames in 20 s, 0 CRC failures
+  1075/1085/1095/1125  MSM5 @ 1 Hz   (code + full carrier phase)
+  1006 + 1008 + 1033   station and antenna metadata
+result: 136 epochs SINGLE -> 16 epochs RTK FLOAT, GGA age 1.0 s, ref station 0004
+```
+
+Two conclusions worth keeping:
+
+- **The bridge's job is proven.** `INTERFACEMODE … AUTO AUTO ON`, `0xD3` auto-detect, the
+  length field and the CRC-24Q check all work on real corrections — the receiver advances to
+  FLOAT, so the corrections are reaching the RTK engine.
+- **MSM5 is enough.** Full carrier phase, not just code. A mount point serving MSM4 or higher
+  is usable; MSM1–MSM3 (code only, or coarse phase) will never give a fixed solution.
+
+`FIXED` was not reached in that run. The antenna was on a bench without a ground plane, C/N0
+sat at 29–36 dB-Hz against `RtkSnrThresh 28`, and the sky was overcast. That is an
+observation-environment result, not a code fault — retest under open sky before chasing
+anything in the firmware.
+
+To run the same test yourself: `python tools/ntrip_to_receiver.py COM17 <mountpoint>`, with
+caster credentials in `.ntrip` (git-ignored).
+
 ---
 
 ## Changing the sequence in firmware
@@ -568,8 +747,8 @@ static const Cmd kCommands[] = {
     ...
     {"LOG " GNSS_CMD_PORT " GPGGA ONTIME 1", true, 1},
     ...
+    {"SAVECONFIG", true, 1},                                      // before the switch
     {"INTERFACEMODE " GNSS_CMD_PORT " AUTO AUTO ON", false, 1},   // LAST
-    {"SAVECONFIG", false, 1},
 };
 ```
 
@@ -584,8 +763,8 @@ Each entry carries three fields:
 Rules:
 
 1. `INTERFACEMODE … AUTO AUTO ON` is the **last command the receiver can still hear.**
-   Anything after it is shouted into a port that is no longer listening — which is exactly
-   where the shipped `SAVECONFIG` currently sits (see [the note above](#the-shipped-boot-sequence)).
+   Anything after it is shouted into a port that is no longer listening. `SAVECONFIG` sits
+   directly above it for exactly this reason.
 2. Add diagnostics before `LOG COMCONFIG`, not after.
 3. `GNSS_CMD_PORT` is a macro — use the concatenation form so one define changes every line.
 4. Watch the boot log for `REJECTED` after any change.
@@ -595,15 +774,20 @@ Rules:
 
 Timing: the sequence costs `2 s + (n × GNSS_CMD_WAIT_MS)`. Lowering `GNSS_CMD_WAIT_MS` speeds
 up boot at the cost of possibly reading a reply too early — 600 ms is a comfortable margin,
-300 ms usually works. Commands that go silent are retried, which adds a few seconds per
-silenced command. Three silenced commands is treated as a dead link (`NO REPLY`), not a
-soft warning.
+300 ms usually works, but `SAVECONFIG` alone takes ~400 ms to answer (flash write), so do not
+go below that. Commands that go silent are retried, which adds a few seconds per silenced
+command. Three silenced commands is treated as a dead link (`NO REPLY`), not a soft warning.
+
+Before flashing, the whole table can be replayed against a receiver on the bench:
+`python tools/replay_boot.py COM13` sends the same commands in the same order and prints a
+per-command verdict.
 
 ---
 
 ## Configuring from a PC
 
-Useful for exploring the command set before committing anything to firmware.
+Useful for exploring the command set before committing anything to firmware — and the only way
+to diagnose a receiver that will not talk to the ESP32.
 
 1. Wire a **3.3 V** USB-TTL adapter to the receiver's UART pins: adapter RX ← receiver TX, adapter TX →
    receiver RX, GND ↔ GND. Power the receiver from its own supply.
@@ -651,12 +835,29 @@ If it still does not answer, work through:
 
 | Check | How |
 |---|---|
+| **Boot loop, not silence** | If you see `CBOOT … / Register Code is OK. / Loading...` repeating, the receiver is resetting, not ignoring you. This is a **cable or power** fault, not a protocol one — see below |
 | Wrong baud | Try 9600, 19200, 38400, 57600, 115200, 230400 |
 | TX/RX swapped | Swap the pair. This is the most common wiring error |
 | No common ground | Meter it. UART without a shared reference does not work |
 | No power | Confirm 5 V at the board |
 | Line ending | Must be CR+LF |
 | Receiver genuinely lost | `FRESET`, then reconfigure. Expect a slow first cold start |
+
+> **A repeating `CBOOT` banner is a wiring fault.** Seen on this project with a bad USB cable:
+> the receiver never finishes booting, so every command is sent into a unit that is rebooting
+> roughly every 1.3 s and never parses anything.
+>
+> ```
+> CBOOT 7.4.6 BUILD (2025-Feb-13 13:48:00)
+> SN: 01A0 09478926 2024/01/17 A80 746
+> Register Code is OK.
+> Loading...                    ← and the banner starts again
+> ```
+>
+> `Register Code is OK` proves the flash and the authorization are fine, so this is not
+> corrupted firmware. Replacing the cable fixed it immediately. If you see this pattern, swap
+> the USB cable and check that the supply can actually source 150–300 mA before touching
+> anything else — see [HARDWARE.md → Power](HARDWARE.md#power).
 
 The ESP32 boot log tells you which of these it is. Since the sequence stops at the first
 silent `LOG VERSION`, a dead link shows up as two lines and `init NO REPLY` rather than
@@ -689,17 +890,37 @@ link is fine and only those commands are unsupported.
   would stream NMEA and never produce an RTK fix.
 - **Don't save a baud change** unless you also change `GNSS_BAUD` and reflash.
 - **Talker IDs vary.** `$GPGGA` vs `$GNGGA` is normal, and neither breaks anything.
-- **Board revisions vary.** The boot sequence was confirmed upstream on a different board, and
-  has not been re-confirmed on this one. On first boot read the log; if your unit behaves
-  differently, open an issue with `LOG VERSION` output and the boot log.
+- **Board revisions vary.** The boot sequence was replayed against this project's board
+  (`S32352K803`, FW 7.4.6) and all 17 commands were accepted. A different revision may answer
+  differently — on first boot read the log; if your unit behaves differently, open an issue
+  with `LOG VERSION` output and the boot log.
 - **`SET APPSCENE` replaces `RTKDYNAMICS` and `RTKOBSMODE`.** Both are absent from V3.1.
   Sending them returns `Error! Invalid key word!`.
 - **Tilt compensation is not on this board.** The whole `insrtk` group and the §3.4.8 tilt logs
   are documented for a different variant. They are rejected — that is a hardware difference,
   not a missing authorization, and it is not fixable from software.
 - **`SYSCONFIG` is read-only via `LOG`.** There is no `SET SYSCONFIG` command. Use individual
-  commands (e.g. `PPSCONTROL`, `SET RELAYRTCMV3`) and verify with `LOG SYSCONFIG` if your
-  firmware answers it at all — the keyword is not in V3.1.
+  commands (e.g. `PPSCONTROL`, `SET RELAYRTCMV3`) and verify with `LOG SYSCONFIG` — it does
+  answer on 7.4.6, despite not being in V3.1.
+- **`OK!` is not proof.** `LOG TRACKSTATA` answers `OK! Command accepted!` and emits nothing.
+  Check that output actually appears before building anything on a log.
+- **Binary logs need the `B` suffix.** `LOG SPECTRUM` is accepted and silent;
+  `LOG SPECTRUMB` produces the data. The same pattern applies to other binary-only logs.
+- **An empty `LOGLIST` is a correct answer.** On a factory receiver nothing is configured yet.
+- **Antenna faults do not show up in `SYSRTS` on this board.** `ANT1 status` and `ANT1 qual`
+  are left blank even with the antenna disconnected. Diagnose the antenna with
+  `LOG COM1 GPGSV ONTIME 1` and, if that is empty, with a
+  [spectrum scan](#spectrum-scan) against a disconnected-antenna baseline.
+- **`RTKSOURCE` can silently discard every correction.** V3.1 §2.2.20 filters incoming RTCM by
+  base-station ID. With a specific ID set, corrections from any other station are dropped
+  without a word — NMEA keeps streaming, a point keeps plotting, and RTK never fixes. The
+  documented `RTKSOURCE RTCMV3 ANY` is accepted on 7.4.6; send it once and confirm. Note that
+  `LOG RTKSOURCE` is **not** a valid read command (`Error! Invalid key word!`) — the value only
+  appears inside `LOG SYSCONFIG`.
+- **SBAS is turned off with `SET SIGNAL SBAS OFF`.** Neither `SBASSYS DISABLE` nor
+  `SET SBAS OFF` is accepted on 7.4.6, even though `SBASSYS` is listed in the V3.1 contents as
+  §2.2.32. `SET SIGNAL SBAS OFF` answers `OK` and `LOG SYSCONFIG` then shows
+  `SBAS Control : Disabled`.
 
 ---
 

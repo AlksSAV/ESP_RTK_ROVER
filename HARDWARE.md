@@ -17,6 +17,7 @@ and a power bank. Four wires between the boards.
 - [Housing](#housing)
 - [PPS (optional)](#pps-optional)
 - [Bench test before you go out](#bench-test-before-you-go-out)
+- [Testing the receiver without the ESP32](#testing-the-receiver-without-the-esp32)
 - [Photo checklist](#photo-checklist)
 
 ---
@@ -229,13 +230,104 @@ antenna-power command, so measure instead of assuming:
 | 0 V | The board does not power an LNA | Feed the antenna through an inline bias-tee off the same 5 V |
 | 3.3 V / 5 V | Bias is present | Check it is within the antenna's rated supply before connecting |
 
+**Measured on this board: 4.35 V**, open circuit. So the bias is there — but an open-circuit
+voltage says nothing about whether current actually reaches the LNA. A live LNA draws
+15–50 mA and pulls that rail down. If you can break the centre conductor and measure current
+in series, that single number separates all three remaining faults: 15–50 mA means the LNA is
+alive, 0 mA means an open cable, a dead LNA, or a connector whose centre pin never mated.
+
 Then confirm the LNA is actually alive: with the antenna connected and the board running,
 `LOG COM1 GPGSV ONTIME 1` should show plausible SNR. A starved or dead LNA still lists
 satellites — with **zero or near-zero SNR**, because the receiver sees the antenna's noise,
 not the sky.
 
 > **Placeholder:** `media/antenna-port.jpg` — the antenna connector on the board.
-> **Placeholder:** `media/antenna-bias-voltage.jpg` — multimeter reading on the centre pin.
+
+### When no satellites appear at all
+
+`$GPGSV,1,1,00` with zero satellites in view is not a weak antenna, it is a broken RF path.
+A receiver in the open with a working antenna lists several satellites within seconds, even
+before it can compute a fix.
+
+Work through this in order — each step is cheap and each one eliminates a whole class of fault:
+
+| Step | Do | If it fails |
+|---|---|---|
+| 1 | **Wait.** A receiver off for months has a stale almanac, so the first fix takes 30 s–5 min | Not the cause of zero satellites: acquisition searches PRNs regardless of orbital data |
+| 2 | **Point the antenna up.** A patch antenna has its beam on the flat face; lying on its side it looks at the horizon | — |
+| 3 | **`ECUTOFF 0` and `BD2ECUTOFF 0`**, then watch `GPGSV` | A 10° mask plus a balcony wall can hide the whole sky. Restore with `ECUTOFF 10` |
+| 4 | **`SET AE`** → `OFF`, `25M`, back to `100M` | Irrelevant for a BT-800D: it has a DC-biased LNA, not clocked electronics. Confirmed no effect |
+| 5 | **Measure DC on the centre pin** with the antenna off | 0 V means no bias — see above |
+| 6 | **Scan the spectrum**, then repeat with the antenna disconnected | See below |
+
+### When no satellites appear at all
+
+`$GPGSV,1,1,00` with zero satellites in view is not a weak antenna — it is either a broken RF
+path or **no sky**. Do not start by trusting the hardware: a patch antenna behind glass, under a
+balcony slab or facing a wall really can see nothing.
+
+Work through this in order — each step is cheap and each one eliminates a whole class of fault:
+
+| Step | Do | If it fails |
+|---|---|---|
+| 1 | **Go outside, under open sky**, antenna flat and facing up. Give it 2–3 minutes | If satellites appear here, nothing is broken — the previous position had no sky. This is the single most common cause of a total zero |
+| 2 | **`ECUTOFF 0` and `BD2ECUTOFF 0`**, then watch `GPGSV` | A 10° mask plus a wall can hide the whole sky. Restore with `ECUTOFF 10` |
+| 3 | **Measure DC on the centre pin, twice**: antenna off, then antenna connected | 0 V off = no bias at all. Identical readings with and without = the LNA draws no current: open cable or a centre pin that never mated. A visible sag under load (e.g. 4.63 → 4.37 V) is the **good** result — it proves current flows |
+| 4 | **Check the connector mates.** TNC comes in male and female; a mismatch threads on but the pin never engages | Power stays on the board's contact and no signal passes — exactly the "bias fine, no satellites" combination |
+| 5 | **Substitute any GNSS antenna** — a car puck is enough | Isolates the board's RF path from the antenna and cable |
+| 6 | **`SET AE`** → `OFF`, `25M`, back to `100M` | Irrelevant for a BT-800D: it has a DC-biased LNA, not clocked electronics. Confirmed no effect |
+| 7 | **Scan the spectrum** | Interference hunting only — see below. It cannot prove an antenna is dead |
+
+> **Do not skip step 1.** Every other step in this table was run indoors on this project, and
+> none of them found a fault: bias present, the LNA drawing current, the front end responsive,
+> the whole command set accepted — while satellites stayed at zero. The missing variable was the
+> sky. Ordinary insulating glass costs a few dB; a low-E coating (the mirror-ish finish on modern
+> double glazing) attenuates L1 by 20–30 dB, which is enough to take a receiver from a full sky to
+> nothing at all. A balcony is one slab of concrete and one such window away from an open view.
+
+#### The spectrum test
+
+`SCANSPECTRUM` + `LOG COM1 SPECTRUMB` sweeps the receiver's own front end
+(see [COMMANDS.md → Spectrum scan](COMMANDS.md#spectrum-scan) for the format and the binary
+header; `tools/scan_spectrum.py` automates it).
+
+> ⚠️ **A sweep cannot tell you whether the antenna is delivering satellites.** GNSS signals are
+> ~20 dB *below* the noise floor in the band being swept — L1 C/A arrives around −130 dBm while
+> thermal noise across 2 MHz is about −111 dBm. A working antenna and a dead one both look flat.
+> An early revision of this document claimed a flat profile proved a dead antenna. That was wrong,
+> and it wasted time chasing hardware that was fine.
+>
+> What a sweep **is** good for:
+>
+> - **Interference.** A narrow peak standing above a flat floor is a real emitter — a switching
+>   supply, an LED driver, a cheap charger near the antenna.
+> - **Front-end sanity.** A level pinned at the bottom of the range suggests the front end itself
+>   is not working.
+>
+> Two traps, both measured here. Levels are in **arbitrary units** — V3.1 gives no dBm
+> calibration, so only comparisons between sweeps mean anything. And a sweep can return
+> **fewer points than requested** (one run reported 56 where 100 were asked for): always check
+> the point count matches before comparing two profiles.
+
+### Antenna faults that are not the antenna
+
+From the bench session on this board (BT-800D, then a replacement antenna, pigtail and cable):
+
+| Measurement | Result | Reading |
+|---|---|---|
+| DC, antenna disconnected | **4.63 V** | Bias present on the board |
+| DC, antenna connected | **4.37 V** | 0.26 V sag → the LNA draws current. Power path healthy |
+| `SET AE` 100M / OFF / 25M, 20 s each | 0 satellites every time | AE is not the cause |
+| `ECUTOFF 0` + `BD2ECUTOFF 0`, 5 min | 0 satellites | The mask is not the cause |
+| Spectrum, with and without antenna | flat both ways | Expected — signals are sub-noise. Proves nothing |
+| Whole `kCommands[]` replayed | 17/17 accepted | Receiver and firmware sequence are fine |
+
+Everything the electronics can answer for came back clean while satellites stayed at zero — and
+every measurement was taken indoors. That combination points at the sky, not at the hardware.
+
+Substituting a different antenna — any GNSS antenna, even a car puck — is the fastest way to
+split the problem: if satellites appear, the BT-800D or its cable is at fault; if they do not,
+suspect the board's connector or RF path. But do it **outside**, or the test proves nothing.
 
 ### Mounting
 
@@ -336,6 +428,43 @@ is typically not asserted before then.
 7. Check GSV SNR values once you have a fix — that is how you notice a starved LNA before it
    costs you a day of survey.
 
+> Steps 1–4 can be done with no ESP32 at all — see
+> [Testing the receiver without the ESP32](#testing-the-receiver-without-the-esp32).
+---
+
+## Testing the receiver without the ESP32
+
+The receiver speaks plain ASCII over UART, so a **3.3 V USB-TTL adapter** turns a PC into a
+complete bench console. This is the right way to bring up a new board: it separates receiver
+faults from firmware faults before the ESP32 is involved at all.
+
+Wiring is the same as [Connections](#connections) minus the ESP32 — adapter RX ← receiver TX,
+adapter TX → receiver RX, GND ↔ GND, and the receiver on its own 5 V supply.
+
+`tools/` holds a set of scripts that need only `pyserial`:
+
+| Script | What it does |
+|---|---|
+| `probe_k803.py` | Listens, then sends `LOG VERSION`. Add commands as arguments to run any of them |
+| `replay_boot.py` | Sends exactly the firmware's boot sequence and prints a per-command verdict |
+| `test_saveconfig.py` | Checks whether `SAVECONFIG` survives the switch to `AUTO` |
+| `test_autoparse.py` | Distinguishes "the port stopped parsing" from "this command is unsupported" |
+| `test_ae.py` | Steps `SET AE` through its values and counts satellites at each |
+| `test_ecutoff.py` | Drops the elevation mask to 0° and watches `GPGSV` |
+| `scan_spectrum.py` | Sweeps L1 and L5 through `SCANSPECTRUM` + `SPECTRUMB` |
+
+```powershell
+python tools/probe_k803.py COM13                 # is it alive?
+python tools/replay_boot.py COM13                # does the firmware sequence land?
+python tools/scan_spectrum.py COM13              # interference only - it cannot see satellites
+```
+
+Every script leaves the receiver in `COMPASSNAV` and none of them calls `SAVECONFIG` unless it
+says so, so a power cycle always restores the previous state.
+
+> **Port name, not port number.** `GNSS_CMD_PORT` in `src/config.h` is the receiver's own port
+> label (`COM1`) and is unrelated to the Windows `COM13` you pass to these scripts.
+
 ---
 
 ## Photo checklist
@@ -348,7 +477,7 @@ Photos worth capturing — drop them in `media/` and the placeholders above beco
 | `board-bottom.jpg` | Bottom: power and UART test points |
 | `board-pinout.jpg` | The four signals called out on the board |
 | `antenna-port.jpg` | Antenna connector on the board |
-| `antenna-bias-voltage.jpg` | Multimeter reading on the antenna centre pin |
+| `antenna-bias-voltage.jpg` | Multimeter reading on the antenna centre pin — measured **4.35 V**, photo still needed |
 | `antenna-bt800d.jpg` | Beitian BT-800D, TNC connector on the pigtail — ✅ in repo |
 | `antenna-on-pole.jpg` | Beitian BT-800D on the pole, cable routed |
 | `wiring-xiao.jpg` | XIAO wired up, wire colours visible |

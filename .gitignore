@@ -4,3 +4,7 @@
 
 # Local tool state
 .claude/
+
+# NTRIP caster credentials - never commit
+.ntrip
+*.ntrip
