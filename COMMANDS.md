@@ -38,12 +38,11 @@ firmware, plus the ASCII command set from OEM Board Reference Manual **V3.1**.
 | ⚠️ | **Not found in V3.1.** Reported to work on some firmware builds; confirm on your unit before relying on it. |
 
 > **Verified on hardware.** The boot sequence and the commands marked ✅ below were replayed
-> against this project's K803 (model `S32352K803`, FW **7.4.6**, build 2025/Dec/30) over
-> COM13 at 115200 8N1. All 17 commands then in `kCommands[]` were accepted —
-> `rejected=0, silent=0` — and the resulting configuration survived a cold power cycle.
-> `RTKSOURCE RTCMV3 ANY` (now #9) was confirmed accepted separately, see
-> [TODO.md](TODO.md) item 12.4. See [TODO.md](TODO.md) item 11 for the full bench log,
-> including the antenna fault that was found along the way.
+> against this project's K803 (model `S32352K803`, FW **7.4.6**) over COM13/COM17 at 115200 8N1.
+> The full current `kCommands[]` — 19 commands including `RTKSOURCE RTCMV3 ANY` and
+> `SET SIGNAL SBAS OFF` — was accepted with `rejected=0, silent=0`, and the resulting
+> configuration survived a cold power cycle. See [TODO.md](TODO.md) item 11 for the
+> full bench log, including the antenna fault that was found along the way.
 
 Command availability still varies with firmware build and **authorization**. A command your
 unit does not support is rejected, not silently ignored — check the reply.
