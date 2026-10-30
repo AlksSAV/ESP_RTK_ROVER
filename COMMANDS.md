@@ -128,8 +128,8 @@ Consequences:
 
 ## The shipped boot sequence
 
-Run by `gnssInit()` on every boot, before Bluetooth starts. Roughly **12 seconds**:
-2 × 1000 ms preamble + 18 × `GNSS_CMD_WAIT_MS` (600 ms).
+Run by `gnssInit()` on every boot, before Bluetooth starts. Roughly **13 seconds**:
+2 × 1000 ms preamble + 19 × `GNSS_CMD_WAIT_MS` (600 ms).
 
 Running it every boot is deliberate — the receiver is left in a known state no matter what the
 previous session or a firmware experiment did to it.
@@ -139,7 +139,7 @@ previous session or a firmware experiment did to it.
 | # | Command | Why | |
 |---|---|---|---|
 | 1 | `INTERFACEMODE COMPASS COMPASS ON` | Escape hatch. A previous run left COM1 in RTCM auto-detect, where ASCII is ignored; this pulls it back to the ComNav ASCII/binary protocol. On a cold receiver it is a harmless no-op. **Must be first.** | ✅ |
-| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 18 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
+| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 19 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
 
 ### Main sequence
 
@@ -161,8 +161,9 @@ previous session or a firmware experiment did to it.
 | 16 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
 | 17 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
 | 18 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
-| 19 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
-| 20 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
+| 19 | `PPSCONTROL ENABLE POSITIVE 1 1000 1` | 1 Hz time pulse on the PPS pin, read by the ESP32. Sent only when `USE_PPS` is on; a unit without PPS answers `Invalid` and the rejection lands in the WARN count on purpose. See V3.1 §2.2.15. | ✅ |
+| 20 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
+| 21 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
 
 > **INS / dead-reckoning is deliberately absent.** An earlier revision of this firmware sent
 > `INSCONTROL ENABLE` and `SET SMOOTHEDDR ON`. They are gone: the K803 has an IMU but no tilt
@@ -894,7 +895,7 @@ link is fine and only those commands are unsupported.
   (`GNSS WARN rejected=N`). A refused `FIX NONE` leaves the unit in base mode and RTK
   never fixes — visible as a persistent warning, not as missing data.
 - **No reply.** If `LOG VERSION` gets no answer, the entire sequence aborts after ~2 s
-  (instead of wasting ~12 s on dead commands). The boot log says `init NO REPLY` and
+  (instead of wasting ~13 s on dead commands). The boot log says `init NO REPLY` and
   `[STAT]` shows `GNSS NO REPLY` until the receiver is wired correctly.
 - **Silence is retried, rejection is not.** A command that answers nothing is re-sent (up to
   `maxRetries` times) — a receiver that was mid-log can miss one. A command answered

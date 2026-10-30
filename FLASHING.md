@@ -235,7 +235,7 @@ Check the boot log for `GNSS NO REPLY` or `WARN` if the receiver is still not re
 | `[STAT] … up 512 B/s` | Receiver is streaming **and** a phone is linked |
 | `[STAT] … down 240 B/s` | RTCM corrections are reaching the receiver |
 
-The whole init takes about **12 seconds** before Bluetooth comes up. That is expected — 18
+The whole init takes about **13 seconds** before Bluetooth comes up. That is expected — 19
 commands at 600 ms each, plus a 2 s preamble. Commands that get no answer are retried (up to
 three attempts for `UNLOGALL COM1` and `SET APPSCENE Survey`), so a receiver that answers
 slowly can push this higher. If the receiver does not answer `LOG VERSION`, the sequence

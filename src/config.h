@@ -42,7 +42,7 @@
 #define GNSS_CMD_PORT "COM1"
 
 // Per-command settle time. The whole sequence costs roughly
-// 2 s + (commands x this), so ~12 s of boot before the bridge comes up.
+// 2 s + (commands x this), so ~13 s of boot before the bridge comes up.
 #define GNSS_CMD_WAIT_MS 600
 
 // Commands that stay silent after all their retries are counted; once that
@@ -114,7 +114,7 @@
 // would look starved during completely normal operation.
 //
 // Subscribed at the end of setup(), not the start: receiver init blocks for
-// ~12 s in setup() and would trip the watchdog mid-init.
+// ~13 s in setup() and would trip the watchdog mid-init.
 #ifndef USE_TASK_WDT
 #define USE_TASK_WDT 1
 #endif

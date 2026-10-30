@@ -616,3 +616,36 @@ Generic NMEA — внешний код, стоит проверить в пол�
 
 ---
 
+## 13. После полевых испытаний: софт
+
+### 13.1 Сделано
+
+- [x] `RTKSOURCE RTCMV3 ANY` — #9 в `kCommands[]` + `replay_boot.py` + `COMMANDS.md`
+      (закрыло «тихий» отказ: ID станции в фильтре молча отбрасывает чужие коррекции)
+- [x] `BESTPOSA` в `ntrip_to_receiver.py` — парсер ComNav ASCII (`#`-префикс, `;` после
+      заголовка, CRC32 вместо XOR), проверен на примерах V3.1 §3.2.5.1; GGA оставлен fallback
+- [x] `BESTPOSA` в дашборде — карточка «Engine verdict» (Pos type, Sol stat, σ lat/lon/hgt,
+      height, station ID, datum), скрыта пока приёмник не шлёт BESTPOSA; оба сплиттера
+      (BLE + WebSocket) ловят `#`-строки; JS-парсер проверен на node
+- [x] Дашборд: баннер fix quality теперь рисуется из BESTPOSA, GGA — fallback
+      (согласовано с Python-скриптом)
+- [x] `SET SIGNAL SBAS OFF` — #10 в `kCommands[]`: ровер корригируется по RTCM, SBAS
+      конкурирует с RTCM-путём и даёт quality 2; принимается только такое написание,
+      после SAVECONFIG на чужой плате не переживает — поэтому каждый бут
+- [x] README — секции «Field test results» и «Bench tools» (таблица 11 скриптов + ссылка
+      на tools/README.md)
+- [x] `install/firmware/xiao-c6-ble.bin` — пересобран после каждой правки (проверено:
+      строки BESTPOSA в дашборде внутри bin присутствуют)
+
+### 13.2 Осталось (нужно железо/поле)
+
+- [ ] Прогнать `replay_boot.py` — подтвердить всю `kCommands[]` живой платой
+      (`RTKSOURCE` и `SET SIGNAL SBAS OFF` в составе последовательности ещё не проверялись)
+- [ ] Прогон `ntrip_to_receiver.py` с BESTPOSA под открытым небом и ground plane —
+      подтвердить переход NARROW_FLOAT → NARROW_INT
+- [ ] Проверить на живом приёмнике, отдаёт ли порт в AUTO строки `#BESTPOSA`
+      (парсер проверен только на примерах из мануала)
+
+---
+
+

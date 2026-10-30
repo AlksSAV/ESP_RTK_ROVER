@@ -189,7 +189,7 @@ static void watchdogInit() {
 
   // Subscribe loopTask explicitly.
   // Arduino core creates the task with WDT disabled (loopTaskWDTEnabled=false)
-  // because setup() blocks ~12 s on receiver init and would trip the timer.
+  // because setup() blocks ~13 s on receiver init and would trip the timer.
   if (esp_task_wdt_add(NULL) != ESP_OK) {
     DBG("[SYS] WDT subscribe failed - loop() is unprotected\n");
   } else {
@@ -282,7 +282,7 @@ void setup() {
 
   bridgeBegin();
 
-  // Subscribe loopTask to TWDT after init completes (init blocks ~12 s and
+  // Subscribe loopTask to TWDT after init completes (init blocks ~13 s and
   // would trip the watchdog).  Must happen before the loop starts.
   watchdogInit();
 
