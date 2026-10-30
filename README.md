@@ -176,6 +176,32 @@ Firmware layout: `src/main.cpp` moves bytes, `src/gnss_init.cpp` configures the 
 
 ---
 
+## Bench tools
+
+`tools/` holds scripts that talk to the K803 directly from a PC over USB-TTL — no ESP32 and no
+phone needed. Full bench logs: [TODO.md](TODO.md) §11–12.
+
+| Script | What it does |
+|---|---|
+| `probe_k803.py` | passive listening + `LOG VERSION`, or arbitrary commands |
+| `replay_boot.py` | replays `kCommands[]` exactly and prints an OK / WARN / NO REPLY verdict |
+| `test_saveconfig.py` | checks whether `SAVECONFIG` still lands after `INTERFACEMODE AUTO` |
+| `test_autoparse.py` | tells "port does not parse ASCII" apart from "command not supported" |
+| `test_ae.py` | walks `SET AE` and counts satellites |
+| `test_ecutoff.py` | clears the elevation mask and watches `GPGSV` |
+| `scan_spectrum.py` | L1/L5 spectrum scan through `SCANSPECTRUM` + `SPECTRUMB` |
+| `ntrip_to_receiver.py` | streams RTCM3 from an NTRIP caster straight into the UART and watches GGA/BESTPOSA |
+| `check_links.py` | finds broken links and anchors between the markdown docs |
+| `embed_html.py` | embeds `web/rtk-monitor.html` into `src/web_dashboard.h` (runs automatically via PlatformIO) |
+| `inspect_firmware.py` | compares the committed installer image with the current build |
+
+Full bench logs: [TODO.md](TODO.md) §11–12. A receiver fault and a firmware fault look identical
+from the phone — no NMEA, no fix. A **3.3 V USB-TTL adapter** removes the firmware from the
+picture: the receiver speaks plain ASCII over UART, so a PC can configure, interrogate and
+measure it. See **[tools/README.md](tools/README.md)** for wiring and usage.
+
+---
+
 ## Field test results
 
 | | |
