@@ -129,7 +129,7 @@ Consequences:
 ## The shipped boot sequence
 
 Run by `gnssInit()` on every boot, before Bluetooth starts. Roughly **12 seconds**:
-2 × 1000 ms preamble + 17 × `GNSS_CMD_WAIT_MS` (600 ms).
+2 × 1000 ms preamble + 18 × `GNSS_CMD_WAIT_MS` (600 ms).
 
 Running it every boot is deliberate — the receiver is left in a known state no matter what the
 previous session or a firmware experiment did to it.
@@ -139,7 +139,7 @@ previous session or a firmware experiment did to it.
 | # | Command | Why | |
 |---|---|---|---|
 | 1 | `INTERFACEMODE COMPASS COMPASS ON` | Escape hatch. A previous run left COM1 in RTCM auto-detect, where ASCII is ignored; this pulls it back to the ComNav ASCII/binary protocol. On a cold receiver it is a harmless no-op. **Must be first.** | ✅ |
-| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 17 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
+| 2 | `LOG VERSION` | Proves the link works and records model, firmware build and authorization in the boot log. **Gate for the rest of the sequence:** no reply here means the UART is dead and the remaining 18 commands cannot land either, so `gnssInit()` aborts instead of spending ten seconds on timeouts. | ✅ |
 
 ### Main sequence
 
@@ -152,16 +152,17 @@ previous session or a firmware experiment did to it.
 | 7 | `SET APPSCENE Survey` | Select **rover survey** application scenario. Replaces `RTKDYNAMICS FOOT` (not in V3.1). See V3.1 §2.2.24, Table 2-5. | ✅ |
 | 8 | `UNLOCKOUTALL` | Re-enable every satellite/constellation the base config may have locked out. | ✅ |
 | 9 | `RTKSOURCE RTCMV3 ANY` | Accept RTCM3 from any base station. Without this a station-specific ID silently discards corrections from other stations. Idempotent, accepted on FW 7.4.6. | ✅ |
-| 10 | `LOG COM1 GPGGA ONTIME 1` | Position, fix quality, sats, HDOP, altitude, **correction age**, base ID. The single most important sentence — NTRIP clients also echo it back to the caster. | ✅ |
-| 11 | `LOG COM1 GPGST ONTIME 1` | Position-error statistics: σ latitude / σ longitude / σ altitude. This is where "6 mm" comes from. | ✅ |
-| 12 | `LOG COM1 GPGSA ONTIME 1` | Active satellites, PDOP / HDOP / VDOP. | ✅ |
-| 13 | `LOG COM1 GPGSV ONTIME 1` | Satellites in view with SNR. Useful for siting; the bulkiest sentence by far. | ✅ |
-| 14 | `LOG COM1 GPRMC ONTIME 1` | Recommended minimum: position, speed, course, date. Some apps refuse to start without it. | ✅ |
-| 15 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
-| 16 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
-| 17 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
-| 18 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
-| 19 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
+| 10 | `SET SIGNAL SBAS OFF` | A rover is corrected over RTCM, not by a geostationary SBAS satellite; left enabled, SBAS can pull the solution to quality 2 and compete with the RTCM path. Only this spelling is accepted on 7.4.6. See V3.1 §2.2.24. | ✅ |
+| 11 | `LOG COM1 GPGGA ONTIME 1` | Position, fix quality, sats, HDOP, altitude, **correction age**, base ID. The single most important sentence — NTRIP clients also echo it back to the caster. | ✅ |
+| 12 | `LOG COM1 GPGST ONTIME 1` | Position-error statistics: σ latitude / σ longitude / σ altitude. This is where "6 mm" comes from. | ✅ |
+| 13 | `LOG COM1 GPGSA ONTIME 1` | Active satellites, PDOP / HDOP / VDOP. | ✅ |
+| 14 | `LOG COM1 GPGSV ONTIME 1` | Satellites in view with SNR. Useful for siting; the bulkiest sentence by far. | ✅ |
+| 15 | `LOG COM1 GPRMC ONTIME 1` | Recommended minimum: position, speed, course, date. Some apps refuse to start without it. | ✅ |
+| 16 | `LOG COM1 GPVTG ONTIME 1` | Course and speed over ground. | ✅ |
+| 17 | `LOG COM1 GPZDA ONTIME 1` | UTC date and time. Lets an app set the device clock from GNSS. | ✅ |
+| 18 | `LOG COMCONFIG` | Dump the port configuration to the boot log — **while the port still answers**. See V3.1 §3.2.2.1. | ✅ |
+| 19 | `SAVECONFIG` | Persist configuration to non-volatile memory. See V3.1 §2.2.22. **Must come before `INTERFACEMODE`** — see the note below. | ✅ |
+| 20 | `INTERFACEMODE COM1 AUTO AUTO ON` | Enable differential auto-detect. RTCM3 from the phone now reaches the RTK engine. [Point of no return](#the-point-of-no-return). | ✅ |
 
 > **INS / dead-reckoning is deliberately absent.** An earlier revision of this firmware sent
 > `INSCONTROL ENABLE` and `SET SMOOTHEDDR ON`. They are gone: the K803 has an IMU but no tilt
@@ -934,7 +935,10 @@ link is fine and only those commands are unsupported.
 - **SBAS is turned off with `SET SIGNAL SBAS OFF`.** Neither `SBASSYS DISABLE` nor
   `SET SBAS OFF` is accepted on 7.4.6, even though `SBASSYS` is listed in the V3.1 contents as
   §2.2.32. `SET SIGNAL SBAS OFF` answers `OK` and `LOG SYSCONFIG` then shows
-  `SBAS Control : Disabled`.
+  `SBAS Control : Disabled`. The boot sequence sends it for exactly this reason: a rover is
+  corrected over RTCM, and an enabled SBAS can pull the solution to GGA quality 2 and compete
+  with the RTCM path. The setting does not survive `SAVECONFIG` on an unknown board, so it is
+  re-asserted on every boot.
 
 ---
 

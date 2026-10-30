@@ -59,6 +59,14 @@ static const Cmd kCommands[] = {
     // from any other base. Idempotent, accepted on FW 7.4.6.
     {"RTKSOURCE RTCMV3 ANY", true, 1},  // (V3.1 2.2.20)
 
+    // A rover gets corrections over RTCM, not from a geostationary SBAS
+    // satellite. Left enabled, SBAS can pull the solution to GGA quality 2
+    // (DGPS/SBAS) and compete with the RTCM path. Only this spelling is
+    // accepted on 7.4.6 (SBASSYS DISABLE and SET SBAS OFF are rejected), and
+    // the setting does not survive SAVECONFIG on an unknown board, so it has
+    // to be re-asserted every boot.
+    {"SET SIGNAL SBAS OFF", true, 1},  // (V3.1 2.2.24)
+
     // INS / dead-reckoning is deliberately NOT enabled. The K803 has an IMU but
     // no tilt compensation, so DR adds no accuracy to a stop-and-go pole rover -
     // and once INS is engaged the receiver starts reporting GGA quality 6
