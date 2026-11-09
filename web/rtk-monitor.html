@@ -207,7 +207,9 @@
   </div>
 
   <div class="card">
-    <h2>GGA</h2>
+    <h2>Height &amp; quality <span class="spacer"></span>
+      <span style="font-weight:400;text-transform:none;letter-spacing:0">GGA · BESTPOSA when present</span>
+    </h2>
     <div class="grid">
       <div class="cell"><div class="k">Altitude MSL</div><div class="v" id="alt">–</div></div>
       <div class="cell"><div class="k">Geoid sep.</div><div class="v" id="geoid">–</div></div>
@@ -230,7 +232,11 @@
       <div class="cell"><div class="k">σ Latitude</div><div class="v" id="bpSdLat">–</div></div>
       <div class="cell"><div class="k">σ Longitude</div><div class="v" id="bpSdLon">–</div></div>
       <div class="cell"><div class="k">σ Height</div><div class="v" id="bpSdHgt">–</div></div>
-      <div class="cell"><div class="k">Height (ell.)</div><div class="v" id="bpHgt">–</div></div>
+      <div class="cell"><div class="k">Height MSL</div><div class="v" id="bpHgt">–</div></div>
+      <div class="cell"><div class="k">Undulation</div><div class="v" id="bpUnd">–</div></div>
+      <div class="cell"><div class="k">Height (ell.)</div><div class="v" id="bpHae">–</div></div>
+      <div class="cell"><div class="k">Corr. age</div><div class="v" id="bpDiffAge">–</div></div>
+      <div class="cell"><div class="k">Sats in soln</div><div class="v" id="bpSats">–</div></div>
       <div class="cell"><div class="k">Station ID</div><div class="v" id="bpStn">–</div></div>
       <div class="cell"><div class="k">Datum</div><div class="v" id="bpDatum">–</div></div>
     </div>
@@ -284,7 +290,7 @@ const $ = id => document.getElementById(id);
 // --------------------------------------------------------------------------
 const S = {
   gga: null, gst: null, gsa: null, rmc: null, vtg: null, zda: null,
-  bestpos: null,
+  bestpos: null, bestposMs: 0,
   bytes: 0, sentences: 0, bad: 0,
   rateBytes: 0, rate: 0, lastFixMs: 0,
   lines: [], paused: false, dirty: true,
@@ -307,6 +313,13 @@ const QUALITY = {
   '8': ['SIMULATION',  'var(--ink-dim)'],
   '9': ['WAAS',        'var(--accent)'],
 };
+
+// --------------------------------------------------------------------------
+// Line filter
+// --------------------------------------------------------------------------
+// Lines worth handing to the parser: NMEA ($), AIS-style (!) and the ComNav
+// ASCII logs (#BESTPOSA ...), which carry a CRC32 and a ';' before the payload.
+const isLogLine = line => line[0] === '$' || line[0] === '!' || line[0] === '#';
 
 // --------------------------------------------------------------------------
 // NMEA
@@ -376,13 +389,19 @@ function parseBestpos(line) {
   if (semi < 0) return null;
   const body = line.slice(0, line.lastIndexOf('*') > semi ? line.lastIndexOf('*') : undefined);
   const f = body.slice(semi + 1).split(',');
-  if (f.length < 11) return null;
+  if (f.length < 15) return null;
   return {
     stat: f[0], soln: f[1],
-    lat: parseFloat(f[2]), lon: parseFloat(f[3]), hgt: parseFloat(f[4]),
+    lat: parseFloat(f[2]), lon: parseFloat(f[3]),
+    hgt: parseFloat(f[4]),          // height above mean sea level
+    und: parseFloat(f[5]),          // geoid - ellipsoid separation
     datum: f[6],
     sdLat: parseFloat(f[7]), sdLon: parseFloat(f[8]), sdHgt: parseFloat(f[9]),
     stn: f[10].replace(/"/g, ''),
+    diffAge: parseFloat(f[11]),     // age of the corrections, seconds
+    solAge: parseFloat(f[12]),
+    sats: f[13],                    // satellites tracked
+    solnSats: f[14],                // satellites used in the solution
   };
 }
 
@@ -394,7 +413,12 @@ function handleSentence(line) {
     S.sentences++;
     if (line.startsWith('#BESTPOSA')) {
       const b = parseBestpos(line);
-      if (b) { S.bestpos = b; S.dirty = true; }
+      if (b) {
+        S.bestpos = b;
+        S.bestposMs = performance.now();
+        if (b.soln !== 'NONE') S.lastFixMs = S.bestposMs;
+        S.dirty = true;
+      }
     }
     return;
   }
@@ -463,12 +487,24 @@ const n = (v, d, unit) =>
     : v.toFixed(d) + (unit ? `<u>${unit}</u>` : '');
 const html = (id, s) => { $(id).innerHTML = s; };
 
+// BESTPOSA is a snapshot of the engine at one epoch. Once it stops arriving -
+// the log was switched off, the receiver reset, the link dropped - the last
+// verdict keeps describing a fix that no longer exists, so it is dropped and
+// the banner falls back to GGA rather than claiming RTK FIXED indefinitely.
+const BESTPOS_STALE_MS = 5000;
+
 function render() {
+  if (S.bestpos && performance.now() - S.bestposMs > BESTPOS_STALE_MS) {
+    S.bestpos = null;
+    S.dirty = true;
+  }
   if (!S.dirty) { renderStats(); return; }
   S.dirty = false;
 
   const g = S.gga;
   const b = S.bestpos;
+  // A BESTPOSA with Pos type NONE carries zeros, not a position.
+  const bPos = b && b.soln !== 'NONE' && b.stat === 'SOL_COMPUTED';
 
   // BESTPOSA drives the fix banner when present (Pos type + σ from engine).
   // GGA is the fallback when BESTPOSA is not enabled.
@@ -477,15 +513,17 @@ function render() {
     $('fixQuality').textContent = label;
     $('fixBanner').style.setProperty('--q', color);
 
-    $('fixSats').textContent = '–';
-    $('fixHdop').textContent = '–';
+    $('fixSats').textContent = b.solnSats || '–';
+    $('fixHdop').textContent = (g && g.hdop) || '–';
     $('fixBase').textContent = b.stn || '–';
-    $('fixTime').textContent = '–';
+    $('fixTime').textContent = toClock(g && g.time) ? toClock(g.time) + ' UTC' : '–';
 
-    $('fixAge').textContent = isFinite(b.sdHgt)
-      ? (b.sdHgt * 1000).toFixed(1) + ' mm σ' : '–';
+    // Correction age has its own field in BESTPOSA; σ belongs in the
+    // quality card, not under a label that says "corr age".
+    $('fixAge').textContent = (bPos && isFinite(b.diffAge))
+      ? b.diffAge.toFixed(1) + ' s' : '–';
 
-    if (b.lat !== null && b.lon !== null) {
+    if (bPos && isFinite(b.lat) && isFinite(b.lon)) {
       $('lat').textContent = b.lat.toFixed(8);
       $('lon').textContent = b.lon.toFixed(8);
       $('latDms').textContent = toDms(b.lat, 'lat');
@@ -493,16 +531,19 @@ function render() {
       $('mapLink').href = `https://www.google.com/maps?q=${b.lat.toFixed(8)},${b.lon.toFixed(8)}`;
     }
 
-    html('alt',   n(b.hgt, 4, 'm'));
-    html('geoid', n(b.hgt, 4, 'm'));  // no geoid in BESTPOSA
-    html('hae',   n(b.hgt, 4, 'm'));
-    set('sats',   '–');
-    set('hdop',   '–');
+    // hgt is height above mean sea level and und is the geoid separation, so
+    // the ellipsoidal height is their sum - same arithmetic as the GGA branch.
+    html('alt',   n(bPos ? b.hgt : null, 4, 'm'));
+    html('geoid', n(bPos ? b.und : null, 4, 'm'));
+    html('hae',   n(bPos ? b.hgt + b.und : null, 4, 'm'));
+    set('sats',   b.solnSats || '–');
+    set('hdop',   (g && g.hdop) || '–', parseFloat(g && g.hdop) > 2 ? 'warn' : '');
     set('base',   b.stn || '–');
-    set('utc',    '–');
-    html('age', isFinite(b.sdHgt)
-      ? (b.sdHgt * 1000).toFixed(1) + '<u>mm σ</u>' : '–');
-    $('age').className = 'v ok';
+    set('utc',    toClock(g && g.time) || '–');
+    html('age', (bPos && isFinite(b.diffAge))
+      ? b.diffAge.toFixed(1) + '<u>s</u>' : '–');
+    $('age').className = 'v' + (!bPos || !isFinite(b.diffAge) ? ''
+      : b.diffAge > 10 ? ' bad' : b.diffAge > 5 ? ' warn' : ' ok');
   } else if (g) {
     const [label, color] = QUALITY[g.quality] || [`QUALITY ${g.quality || '?'}`, 'var(--ink-dim)'];
     $('fixQuality').textContent = label;
@@ -542,8 +583,10 @@ function render() {
     html('sdLon', n(S.gst.sdLon, 3, 'm'));
     html('sdAlt', n(S.gst.sdAlt, 3, 'm'));
   }
-  // BESTPOSA σ overrides GST when available (same units, directly from engine)
-  if (b) {
+  // BESTPOSA σ overrides GST when available (same units, directly from engine).
+  // Only with a real solution: without one the σ fields are zeros, which read
+  // as a perfect fix instead of no fix.
+  if (bPos) {
     html('sdLat', n(b.sdLat, 3, 'm'));
     html('sdLon', n(b.sdLon, 3, 'm'));
     html('sdAlt', n(b.sdHgt, 3, 'm'));
@@ -560,7 +603,11 @@ function render() {
     set('bpSdLat', (b.sdLat * 1000).toFixed(1) + ' mm');
     set('bpSdLon', (b.sdLon * 1000).toFixed(1) + ' mm');
     set('bpSdHgt', (b.sdHgt * 1000).toFixed(1) + ' mm');
-    set('bpHgt', n(b.hgt, 4, 'm'));
+    html('bpHgt', n(bPos ? b.hgt : null, 4, 'm'));
+    html('bpUnd', n(bPos ? b.und : null, 4, 'm'));
+    html('bpHae', n(bPos ? b.hgt + b.und : null, 4, 'm'));
+    set('bpDiffAge', (bPos && isFinite(b.diffAge)) ? b.diffAge.toFixed(1) + ' s' : '–');
+    set('bpSats', bPos ? (b.solnSats || '–') : '–');
     set('bpStn', b.stn || '–');
     set('bpDatum', b.datum || '–');
   } else {
@@ -626,7 +673,7 @@ function onData(ev) {
   while ((i = partial.indexOf('\n')) >= 0) {
     const line = partial.slice(0, i).trim();
     partial = partial.slice(i + 1);
-    if (line.startsWith('$') || line.startsWith('!')) handleSentence(line);
+    if (isLogLine(line)) handleSentence(line);
   }
   // A binary stream (RTCM/UBX slipped onto this port) never yields a newline;
   // do not let the buffer grow without bound.
@@ -666,6 +713,8 @@ async function connect() {
 function onDisconnected() {
   txChar = null;
   partial = '';
+  S.bestpos = null;
+  S.dirty = true;
   setStatus('Disconnected');
   $('btnConnect').textContent = 'Connect';
 }
@@ -691,7 +740,7 @@ function feedBytes(chunk, byteLen) {
   while ((i = partial.indexOf('\n')) >= 0) {
     const line = partial.slice(0, i).trim();
     partial = partial.slice(i + 1);
-    if (line.startsWith('$') || line.startsWith('!')) handleSentence(line);
+    if (isLogLine(line)) handleSentence(line);
   }
   if (partial.length > 2048) partial = '';
 }
@@ -722,6 +771,8 @@ function connectWs() {
   ws.onclose = () => {
     ws = null;
     partial = '';
+    S.bestpos = null;
+    S.dirty = true;
     $('btnConnect').textContent = 'Connect';
     if (!wsWanted) { setStatus('Not connected'); return; }
     // A phone drops the socket the moment the page goes to the background,

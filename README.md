@@ -194,6 +194,7 @@ phone needed. Full bench logs: [TODO.md](TODO.md) §11–12.
 | `check_links.py` | finds broken links and anchors between the markdown docs |
 | `embed_html.py` | embeds `web/rtk-monitor.html` into `src/web_dashboard.h` (runs automatically via PlatformIO) |
 | `inspect_firmware.py` | verifies the installer image before committing: magic byte, dashboard inside, matches the build |
+| `test_dashboard.mjs` | runs the dashboard's script in node and asserts what it renders, no browser needed |
 
 Full bench logs: [TODO.md](TODO.md) §11–12. A receiver fault and a firmware fault look identical
 from the phone — no NMEA, no fix. A **3.3 V USB-TTL adapter** removes the firmware from the

@@ -128,6 +128,7 @@ current; an unchanged reading means it is not.
 |---|---|
 | `embed_html.py` | Inlines `web/rtk-monitor.html` into `src/web_dashboard.h` as a `PROGMEM` string for the Wi-Fi AP build. Runs automatically as a PlatformIO extra script before every build — no need to invoke it by hand |
 | `inspect_firmware.py` | Checks the image in `install/firmware/` before committing: ESP32 magic byte, the current dashboard present byte for byte inside it, and whether the copy matches `.pio/build/…/firmware.factory.bin` |
+| `test_dashboard.mjs` | Runs the dashboard's `<script>` in node against a DOM stub and asserts what it renders for known sentences — no browser and no receiver needed |
 
 `inspect_firmware.py` exits non-zero when either image is unusable, so it works as a pre-commit
 gate:
@@ -135,3 +136,20 @@ gate:
 ```powershell
 python tools/inspect_firmware.py
 ```
+
+### Testing the dashboard without a receiver
+
+`web/rtk-monitor.html` has no build step, so nothing catches a parser regression — a field read
+from the wrong column, a card filled on only one of two code paths, markup left visible on
+screen. `test_dashboard.mjs` extracts the page's own `<script>`, runs it in node with a stub DOM,
+feeds it real `BESTPOSA` / `GGA` / `GST` sentences through `feedBytes()` — the same splitter both
+transports use — and asserts on the rendered text.
+
+```powershell
+node tools/test_dashboard.mjs
+```
+
+It covers: `#BESTPOSA` surviving the line filter, height arithmetic (MSL + geoid separation =
+ellipsoidal), correction age and satellites used, dashes instead of zeros when `Pos type` is
+`NONE`, the GGA fallback when `BESTPOSA` is off, the 5 s staleness cutoff, and that every element
+the render path writes to exists in the markup. Requires node; exits non-zero on failure.
