@@ -49,6 +49,12 @@ static void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) 
       break;
     case WStype_DISCONNECTED:
       if (clientCount > 0) clientCount--;
+      // Same reasoning as the BLE link: corrections queued for a client that is
+      // gone are stale by definition, and the next client would receive them as
+      // if they had just arrived - pushing old RTCM into the receiver right
+      // after reconnect. Only when the LAST client leaves: the buffer is shared,
+      // so its contents cannot be attributed to one of several browsers.
+      if (clientCount == 0 && wsDownlink) xStreamBufferReset(wsDownlink);
       DBG("[WS] client %u disconnected (%u total)\n", num, clientCount);
       break;
     case WStype_TEXT:

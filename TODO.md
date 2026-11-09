@@ -79,6 +79,11 @@ Silicon Labs / WCH драйверы — это инструменты и ком�
 - [x] `main.cpp:pumpDownlink()` — не проверяется `linkReady()`, байты из
       stream buffer могут уйти в UART после отключения телефона
       → решено: `xStreamBufferReset(downlink)` в `onDisconnect`
+- [x] `link_wifi.cpp` — тот же баг на WebSocket-транспорте: `wsDownlink` не
+      сбрасывался при отключении браузера, и накопленный RTCM уходил в UART
+      после переподключения как свежий
+      → сброс при уходе **последнего** клиента (буфер общий, атрибутировать его
+      одному из нескольких браузеров нельзя)
 - [x] `link_ble.cpp` — `downlink` создаётся без проверки на `nullptr`
       → добавлены проверки в `onWrite` и `linkRead`
 - [x] `link_ble.cpp:onWrite()` — `xStreamBufferSend(..., 0)`: при переполнении
