@@ -127,3 +127,11 @@ current; an unchanged reading means it is not.
 | Script | What it does |
 |---|---|
 | `embed_html.py` | Inlines `web/rtk-monitor.html` into `src/web_dashboard.h` as a `PROGMEM` string for the Wi-Fi AP build. Runs automatically as a PlatformIO extra script before every build — no need to invoke it by hand |
+| `inspect_firmware.py` | Checks the image in `install/firmware/` before committing: ESP32 magic byte, the current dashboard present byte for byte inside it, and whether the copy matches `.pio/build/…/firmware.factory.bin` |
+
+`inspect_firmware.py` exits non-zero when either image is unusable, so it works as a pre-commit
+gate:
+
+```powershell
+python tools/inspect_firmware.py
+```
