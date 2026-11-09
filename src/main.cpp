@@ -13,6 +13,7 @@
 
 #include "bridge.h"
 #include "config.h"
+#include "gnss_fix.h"
 #include "gnss_init.h"
 
 static HardwareSerial GnssSerial(GNSS_UART_NUM);
@@ -33,6 +34,24 @@ static GnssInitStatus gnssStatus = {GNSS_INIT_SKIPPED, 0, 0};
 // ---------------------------------------------------------------------------
 // Status LED
 // ---------------------------------------------------------------------------
+// Blink pattern reports the receiver's own solution, read passively from GGA
+// (see gnss_fix.cpp) - the LED sits on the pole, so "how good is the fix" is
+// the only question worth answering there:
+//   rtk fixed → steady on    (nothing else is steady, so it reads at a glance)
+//   float     → fast blink   (200 ms period, 100 ms on)
+//   single    → slow blink   (2 s period, 100 ms on)
+//   no fix    → one short flash every 3 s - alive, but no position
+//   warn      → double flash (1 s period, 2×60 ms on, short pause)
+//   no reply  → triple flash (1 s period, 3×60 ms on, short pauses)
+enum LedPattern : uint8_t {
+  LED_PATTERN_FIXED,
+  LED_PATTERN_FLOAT,
+  LED_PATTERN_SINGLE,
+  LED_PATTERN_NO_FIX,
+  LED_PATTERN_WARN,
+  LED_PATTERN_NO_REPLY,
+};
+
 #if USE_STATUS_LED && defined(LED_BUILTIN)
 static inline void ledSet(bool on) {
 #if LED_ACTIVE_LOW
@@ -46,43 +65,63 @@ static void ledInit() {
   ledSet(false);
 }
 
-// Blink pattern encodes the receiver init outcome:
-//   linked   → slow blink  (2 s period, 60 ms on)
-//   waiting  → fast blink  (600 ms period, 300 ms on)
-//   warn     → double flash (1 s period, 2×60 ms on, short pause)
-//   no reply → triple flash (1 s period, 3×60 ms on, short pauses)
-enum LedPattern : uint8_t {
-  LED_PATTERN_LINKED,
-  LED_PATTERN_WAITING,
-  LED_PATTERN_WARN,
-  LED_PATTERN_NO_REPLY,
-};
-static LedPattern curPattern = LED_PATTERN_WAITING;
+// An init fault is latched and survives both a later fix and a client
+// connecting: the receiver did not answer at boot, and a phone showing up does
+// not repair that. Everything else is recomputed from the live GGA stream.
+static bool faultLatched = false;
+static LedPattern faultPattern = LED_PATTERN_WARN;
 
-static void ledSetPattern(LedPattern p) { curPattern = p; }
+static void ledSetPattern(LedPattern p) {
+  faultLatched = true;
+  faultPattern = p;
+}
 
-// WAITING/LINKED follow the clients; an init-failure pattern is latched and
-// survives both connecting and disconnecting - the fault does not go away
-// because a client showed up.
+static LedPattern patternForFix(GnssFix fix) {
+  switch (fix) {
+    case GNSS_FIX_FIXED:
+      return LED_PATTERN_FIXED;
+    case GNSS_FIX_FLOAT:
+      return LED_PATTERN_FLOAT;
+    case GNSS_FIX_SINGLE:
+      return LED_PATTERN_SINGLE;
+    default:
+      return LED_PATTERN_NO_FIX;
+  }
+}
+
 static void ledTask() {
   const uint32_t t = millis();
-  LedPattern p = curPattern;
-  if (p == LED_PATTERN_LINKED || p == LED_PATTERN_WAITING)
-    p = bridgeReady() ? LED_PATTERN_LINKED : LED_PATTERN_WAITING;
+  const LedPattern p =
+      faultLatched ? faultPattern : patternForFix(gnssFixState());
 
-  const bool blinkOn =
-      (p == LED_PATTERN_LINKED && (t % 2000) < 60) ||
-      (p == LED_PATTERN_WAITING && (t % 600) < 300) ||
-      (p == LED_PATTERN_WARN &&
-       (t % 1000 < 60 || (t % 1000 > 200 && (t % 1000) < 260))) ||
-      (p == LED_PATTERN_NO_REPLY &&
-       (t % 1000 < 60 || (t % 1000 > 150 && (t % 1000) < 210) ||
-        (t % 1000 > 300 && (t % 1000) < 360)));
-  ledSet(blinkOn);
+  bool on = false;
+  switch (p) {
+    case LED_PATTERN_FIXED:
+      on = true;
+      break;
+    case LED_PATTERN_FLOAT:
+      on = (t % 200) < 100;
+      break;
+    case LED_PATTERN_SINGLE:
+      on = (t % 2000) < 100;
+      break;
+    case LED_PATTERN_NO_FIX:
+      on = (t % 3000) < 60;
+      break;
+    case LED_PATTERN_WARN:
+      on = t % 1000 < 60 || (t % 1000 > 200 && (t % 1000) < 260);
+      break;
+    case LED_PATTERN_NO_REPLY:
+      on = t % 1000 < 60 || (t % 1000 > 150 && (t % 1000) < 210) ||
+           (t % 1000 > 300 && (t % 1000) < 360);
+      break;
+  }
+  ledSet(on);
 }
 #else
 static void ledInit() {}
 static void ledTask() {}
+static void ledSetPattern(LedPattern) {}
 #endif
 
 // ---------------------------------------------------------------------------
@@ -94,11 +133,15 @@ static bool pumpUplink() {
   static uint32_t lastByte = 0;
 
   // Nobody listening: drain the UART anyway so it never overflows and resumes
-  // mid-sentence when a client does connect.
+  // mid-sentence when a client does connect. The bytes still go through the
+  // fix reader - the LED has to work on a rover nobody is connected to.
   if (!bridgeReady()) {
     bool had = false;
+    uint8_t sink[64];
     while (GnssSerial.available()) {
-      GnssSerial.read();
+      const size_t n = GnssSerial.read(sink, sizeof(sink));
+      if (n == 0) break;
+      gnssFixFeed(sink, n);
       had = true;
     }
     len = 0;
@@ -109,7 +152,11 @@ static bool pumpUplink() {
   if (limit > sizeof(buf)) limit = sizeof(buf);
 
   while (GnssSerial.available() && len < limit) {
-    buf[len++] = (uint8_t)GnssSerial.read();
+    const uint8_t b = (uint8_t)GnssSerial.read();
+    // Fed here, byte by byte, and not from buf: a chunk the transport refuses
+    // stays in buf and is retried, and the same GGA must not be counted twice.
+    gnssFixFeed(&b, 1);
+    buf[len++] = b;
     lastByte = millis();
   }
 
@@ -224,6 +271,10 @@ static void printStats() {
                 (bytesToPhone - upPrev) / secs, (unsigned long)bytesToPhone,
                 (bytesToGnss - downPrev) / secs, (unsigned long)bytesToGnss);
 
+  // The fix is what the LED shows, so it belongs in the same line: when the LED
+  // and the app disagree, this says which one is reading the stream.
+  Serial.printf("  fix %s", gnssFixName(gnssFixState()));
+
 #if USE_PPS
   // Snapshot first: the ISR keeps running while the line is being formatted.
   uint32_t edges = ppsSnapshot();
@@ -273,12 +324,12 @@ void setup() {
   // starts pulsing while the ISR is already counting.
   ppsInit();
 
-  // Pick an LED pattern that survives into the loop and survives a phone
-  // disconnect (a WARN or NO_REPLY is not transient).
-  ledSetPattern(gnssStatus.result == GNSS_INIT_NO_REPLY
-                    ? LED_PATTERN_NO_REPLY
-                    : (gnssStatus.result == GNSS_INIT_WARN ? LED_PATTERN_WARN
-                                                           : LED_PATTERN_WAITING));
+  // Latch a failed init; a healthy receiver needs no latch - from here the LED
+  // follows the GGA stream, starting at "no fix" until the first sentence.
+  if (gnssStatus.result == GNSS_INIT_NO_REPLY)
+    ledSetPattern(LED_PATTERN_NO_REPLY);
+  else if (gnssStatus.result == GNSS_INIT_WARN)
+    ledSetPattern(LED_PATTERN_WARN);
 
   bridgeBegin();
 

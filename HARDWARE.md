@@ -134,6 +134,30 @@ Notes specific to the C6:
   disappoints inside a printed box, that switch and the box's position relative to the GNSS
   antenna's ground plane are the first things to look at.
 
+### Status LED
+
+The LED is the only thing readable from a distance, so it shows the receiver's own solution,
+not the link state. The firmware reads the fix quality out of the `GGA` sentences already
+passing through the bridge — it never parses or delays the stream — and a fix older than 4 s
+counts as no fix at all.
+
+| Pattern | Meaning |
+|---|---|
+| **Steady on** | RTK FIXED — `GGA` quality 4, the solution you can stake out with |
+| **Fast blink**, 200 ms period | RTK FLOAT — quality 5, corrections are arriving but not resolved |
+| **Slow blink**, 2 s period | A position, but not an RTK one — quality 1/2/3 (SINGLE, DGPS, PPS) |
+| **One short flash** every 3 s | No position — quality 0, or no `GGA` for 4 s |
+| **Double flash**, 1 s period | Boot init: the receiver answered, but rejected some commands |
+| **Triple flash**, 1 s period | Boot init: nothing came back on the UART — wiring, power, or a dead unit |
+
+The two fault patterns are **latched**: they survive a later fix and a phone connecting,
+because a receiver that did not answer at boot is not repaired by a client showing up.
+The rest follow the live stream, and the current state is repeated in the `[STAT]` line on
+the USB console as `fix no fix` / `single` / `float` / `rtk fixed`.
+
+> The LED says nothing about whether a phone is connected. With the fix now on the LED, use
+> the `[STAT]` line or the dashboard for that.
+
 ---
 
 ## Power

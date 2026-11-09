@@ -155,7 +155,19 @@
 #define DEBUG_USB 1  // stats + link state on the USB console (UART0)
 #define DEBUG_STATS_MS 5000
 
+// The LED reports the receiver's own solution, read passively from GGA:
+//   rtk fixed → steady on     (a fix you can stake out with)
+//   float     → fast blink    (200 ms period)
+//   single    → slow blink    (2 s period)
+//   no fix    → single short flash every 3 s, i.e. still alive
+//   init fault → double / triple flash, latched (see main.cpp)
 #define USE_STATUS_LED 1
 #ifndef LED_ACTIVE_LOW
 #define LED_ACTIVE_LOW 1  // XIAO ESP32-C6 built-in LED is active-low
+#endif
+
+// How long a GGA stays believable. The receiver is configured for 1 Hz, so
+// four missed epochs mean the stream stopped, not that the fix is stale.
+#ifndef GNSS_FIX_TIMEOUT_MS
+#define GNSS_FIX_TIMEOUT_MS 4000
 #endif
