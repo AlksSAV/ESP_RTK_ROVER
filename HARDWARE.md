@@ -254,11 +254,12 @@ antenna-power command, so measure instead of assuming:
 | 0 V | The board does not power an LNA | Feed the antenna through an inline bias-tee off the same 5 V |
 | 3.3 V / 5 V | Bias is present | Check it is within the antenna's rated supply before connecting |
 
-**Measured on this board: 4.35 V**, open circuit. So the bias is there — but an open-circuit
-voltage says nothing about whether current actually reaches the LNA. A live LNA draws
-15–50 mA and pulls that rail down. If you can break the centre conductor and measure current
-in series, that single number separates all three remaining faults: 15–50 mA means the LNA is
-alive, 0 mA means an open cable, a dead LNA, or a connector whose centre pin never mated.
+**Measured on this board: 4.63 V** open circuit, **4.37 V** with the antenna connected. That
+0.26 V sag is the good result — a live LNA draws 15–50 mA and pulls the rail down, so the
+current really reaches it. An open-circuit reading alone would only prove the bias exists on
+the board. If you can break the centre conductor and measure current in series, that single
+number separates all three remaining faults: 15–50 mA means the LNA is alive, 0 mA means an
+open cable, a dead LNA, or a connector whose centre pin never mated.
 
 Then confirm the LNA is actually alive: with the antenna connected and the board running,
 `LOG COM1 GPGSV ONTIME 1` should show plausible SNR. A starved or dead LNA still lists
@@ -266,23 +267,6 @@ satellites — with **zero or near-zero SNR**, because the receiver sees the ant
 not the sky.
 
 > **Placeholder:** `media/antenna-port.jpg` — the antenna connector on the board.
-
-### When no satellites appear at all
-
-`$GPGSV,1,1,00` with zero satellites in view is not a weak antenna, it is a broken RF path.
-A receiver in the open with a working antenna lists several satellites within seconds, even
-before it can compute a fix.
-
-Work through this in order — each step is cheap and each one eliminates a whole class of fault:
-
-| Step | Do | If it fails |
-|---|---|---|
-| 1 | **Wait.** A receiver off for months has a stale almanac, so the first fix takes 30 s–5 min | Not the cause of zero satellites: acquisition searches PRNs regardless of orbital data |
-| 2 | **Point the antenna up.** A patch antenna has its beam on the flat face; lying on its side it looks at the horizon | — |
-| 3 | **`ECUTOFF 0` and `BD2ECUTOFF 0`**, then watch `GPGSV` | A 10° mask plus a balcony wall can hide the whole sky. Restore with `ECUTOFF 10` |
-| 4 | **`SET AE`** → `OFF`, `25M`, back to `100M` | Irrelevant for a BT-800D: it has a DC-biased LNA, not clocked electronics. Confirmed no effect |
-| 5 | **Measure DC on the centre pin** with the antenna off | 0 V means no bias — see above |
-| 6 | **Scan the spectrum**, then repeat with the antenna disconnected | See below |
 
 ### When no satellites appear at all
 
@@ -501,7 +485,7 @@ Photos worth capturing — drop them in `media/` and the placeholders above beco
 | `board-bottom.jpg` | Bottom: power and UART test points |
 | `board-pinout.jpg` | The four signals called out on the board |
 | `antenna-port.jpg` | Antenna connector on the board |
-| `antenna-bias-voltage.jpg` | Multimeter reading on the antenna centre pin — measured **4.35 V**, photo still needed |
+| `antenna-bias-voltage.jpg` | Multimeter reading on the antenna centre pin — **4.63 V** open circuit, **4.37 V** under load; photo still needed |
 | `antenna-bt800d.jpg` | Beitian BT-800D, TNC connector on the pigtail — ✅ in repo |
 | `antenna-on-pole.jpg` | Beitian BT-800D on the pole, cable routed |
 | `wiring-xiao.jpg` | XIAO wired up, wire colours visible |
