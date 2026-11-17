@@ -114,12 +114,6 @@ Details: **[FLASHING.md](FLASHING.md)**
 
 ## Connect your phone
 
-<p align="center">
-  <img src="media/swmaps-connect.jpeg" alt="SW Maps GNSS Connection dialog" width="265">
-  &nbsp;&nbsp;
-  <img src="media/swmaps-rtk-fix.jpeg" alt="SW Maps showing RTK FIX" width="265">
-</p>
-
 In **SW Maps** (Android / iOS):
 
 1. **☰ → Bluetooth GNSS**
@@ -179,7 +173,7 @@ Firmware layout: `src/main.cpp` moves bytes, `src/gnss_init.cpp` configures the 
 ## Bench tools
 
 `tools/` holds scripts that talk to the K803 directly from a PC over USB-TTL — no ESP32 and no
-phone needed. Full bench logs: [TODO.md](TODO.md) §11–12.
+phone needed.
 
 | Script | What it does |
 |---|---|
@@ -196,7 +190,7 @@ phone needed. Full bench logs: [TODO.md](TODO.md) §11–12.
 | `inspect_firmware.py` | verifies the installer image before committing: magic byte, dashboard inside, matches the build |
 | `test_dashboard.mjs` | runs the dashboard's script in node and asserts what it renders, no browser needed |
 
-Full bench logs: [TODO.md](TODO.md) §11–12. A receiver fault and a firmware fault look identical
+A receiver fault and a firmware fault look identical
 from the phone — no NMEA, no fix. A **3.3 V USB-TTL adapter** removes the firmware from the
 picture: the receiver speaks plain ASCII over UART, so a PC can configure, interrogate and
 measure it. See **[tools/README.md](tools/README.md)** for wiring and usage.
@@ -214,9 +208,6 @@ measure it. See **[tools/README.md](tools/README.md)** for wiring and usage.
 
 The whole chain is verified: `INTERFACEMODE AUTO` → `0xD3` auto-detect → CRC-24Q → RTK engine
 → FLOAT. The limiting factor is the antenna's C/N0 without a ground plane, not the firmware.
-
-See **[TODO.md](TODO.md) §11–12** for the full bench logs, the `BESTPOSA` bench tool, and the
-open-sky measurement that proved the antenna was the only missing piece.
 
 ---
 

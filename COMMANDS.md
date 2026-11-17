@@ -41,8 +41,7 @@ firmware, plus the ASCII command set from OEM Board Reference Manual **V3.1**.
 > against this project's K803 (model `S32352K803`, FW **7.4.6**) over COM13/COM17 at 115200 8N1.
 > The full current `kCommands[]` — 19 commands including `RTKSOURCE RTCMV3 ANY` and
 > `SET SIGNAL SBAS OFF` — was accepted with `rejected=0, silent=0`, and the resulting
-> configuration survived a cold power cycle. See [TODO.md](TODO.md) item 11 for the
-> full bench log, including the antenna fault that was found along the way.
+> configuration survived a cold power cycle.
 
 Command availability still varies with firmware build and **authorization**. A command your
 unit does not support is rejected, not silently ignored — check the reply.
@@ -286,9 +285,12 @@ See V3.1 §2.2.14 for ONTIME trigger format.
 
 The dashboard and SW Maps both decode this. `4` is what you are aiming for.
 
-> **Talker IDs:** ComNav emits `GP…` for these logs, but multi-constellation firmware may
-> emit `GN…` (e.g. `$GNGGA`). Both the dashboard and every serious GIS app match on the last
-> three characters, so either is fine. Some receivers accept `GNGGA` as a log name too; if
+> **Talker IDs:** measured on 7.4.6, the receiver emits sentences **per constellation** —
+> `$GPGSV`, `$BDGSV`, `$GLGSV`, `$GAGSV` — not a single `$GNGSV`. Some firmware also emits
+> `GN…` (e.g. `$GNGGA`). Both the dashboard and every serious GIS app match on the last
+> three characters, so either is fine. SW Maps in Generic NMEA mode is third-party code —
+> worth checking in the field that it does not drop the non-`GP` sentences.
+> Some receivers also accept `GNGGA` as a log name; if
 > `LOG COM1 GNGGA ONTIME 1` is rejected, use the `GP` form — the output talker ID is decided
 > by the receiver, not by the log name.
 
@@ -359,6 +361,18 @@ the list is still populated without the ESP32 touching it.
 
 These are ASCII logs, not NMEA. Handy on the bench; leave them off in the field, since GIS
 apps will not parse them and they eat bandwidth.
+
+> **Newer FW builds add orientation logs on their own.** A receiver reflashed to a newer 7.4.6
+> build (`630T6-B26A3-1`, 2026/Apr/8) lists four extra logs in `LOGLIST` after a `SAVECONFIG`:
+> `GPNTR`, `GPHPR`, `GPHDT`, `GPTRA` (yaw / pitch / roll / track). Neither SW Maps nor this
+> project's dashboard parses them, and they load the UART and the BLE link. Remove them with
+> `UNLOG` — and keep `UNLOGALL` first in `kCommands[]`: on a board whose saved config contains
+> them, they come back at every power-up.
+
+> **Logs that do not exist in 7.4.6** (all answer `Error! Invalid key word!`):
+> `LOG ANTENNA`, `LOG ANTCONFIG`, `LOG HWSTATUS`, `LOG RXSTATUS`, `LOG RTKSOURCE`,
+> `LOG RTKFIXHOLDTIME`, `LOG DGPSTXID`. The last three are readable only inside
+> `LOG SYSCONFIG`.
 
 #### `LOG SYSRTS` — board status
 
@@ -718,7 +732,7 @@ the receiver.
 
 The correction path was tested end to end with **no ESP32 and no phone**: RTCM3 from a real
 NTRIP caster was written straight into the receiver's UART, exactly as the bridge would, with
-COM1 in `AUTO`. See [TODO.md](TODO.md) item 12 for the full log.
+COM1 in `AUTO`.
 
 ```
 caster stream:  603 B/s, 88 frames in 20 s, 0 CRC failures

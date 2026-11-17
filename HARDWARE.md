@@ -59,8 +59,7 @@ Two things people look for and will not find here:
   which a GIS app accepts as a valid fix. `INSCONTROL` / `SET SMOOTHEDDR` are therefore **not**
   in the boot sequence.
 - What the IMU does give you is raw data: `LOG IMUDATAB` (ID 2264, gyro + accelerometer,
-  100 Hz, supported on K803). See [TODO.md](TODO.md) item 5 for why building tilt compensation
-  on it is a separate project.
+  100 Hz, supported on K803).
 
 > The COM ports are **3.3 V logic** and connect directly to an ESP32-C6 with no level shifter.
 > Do **not** feed 5 V into a COM pin. If you are unsure about your board revision, scope the
